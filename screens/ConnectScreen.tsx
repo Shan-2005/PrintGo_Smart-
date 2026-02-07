@@ -1,8 +1,8 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { QrCode, Smartphone, ArrowRight, ShieldCheck, Printer, Cloud, X } from 'lucide-react';
-import { Scanner } from '@yudiel/react-qr-scanner';
+import { QrCode, ArrowRight, ShieldCheck, Printer, Cloud, X } from 'lucide-react';
+import { Html5Qrcode } from 'html5-qrcode';
 
 interface ConnectScreenProps {
   onConnect: (kioskId: string) => void;
@@ -13,17 +13,18 @@ const ConnectScreen: React.FC<ConnectScreenProps> = ({ onConnect, onSkip }) => {
   const [isScanning, setIsScanning] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [lastScanned, setLastScanned] = useState<string>("");
+  const scannerRef = useRef<Html5Qrcode | null>(null);
 
   const handleScan = (result: string) => {
     if (result) {
+      setLastScanned(result);
       try {
-        // result connects to: http://localhost:5173/app?connect=102
         const url = new URL(result);
         const kioskId = url.searchParams.get('connect');
 
         if (kioskId) {
           onConnect(kioskId);
-          setIsScanning(false);
+          stopScanner();
         } else {
           setError("Invalid QR Code (No Kiosk ID found)");
         }
@@ -31,13 +32,51 @@ const ConnectScreen: React.FC<ConnectScreenProps> = ({ onConnect, onSkip }) => {
         // Fallback: Maybe the QR is JUST the ID?
         if (result.length < 10) {
           onConnect(result);
-          setIsScanning(false);
+          stopScanner();
         } else {
           setError("Invalid QR Code Format");
         }
       }
     }
   };
+
+  const stopScanner = () => {
+    if (scannerRef.current) {
+      scannerRef.current.stop().then(() => {
+        setIsScanning(false);
+      }).catch((err) => console.error("Stop error:", err));
+    }
+  };
+
+  useEffect(() => {
+    if (isScanning) {
+      const scanner = new Html5Qrcode("qr-reader");
+      scannerRef.current = scanner;
+
+      scanner.start(
+        { facingMode: "environment" },
+        {
+          fps: 10,
+          qrbox: { width: 250, height: 250 }
+        },
+        (decodedText) => {
+          handleScan(decodedText);
+        },
+        (errorMessage) => {
+          // Suppress continuous error logs
+        }
+      ).catch((err) => {
+        setError("Camera access failed. Please allow camera permissions.");
+        console.error("Scanner error:", err);
+      });
+
+      return () => {
+        if (scannerRef.current) {
+          scannerRef.current.stop().catch((err) => console.error("Cleanup error:", err));
+        }
+      };
+    }
+  }, [isScanning]);
 
   return (
     <div className="flex flex-col items-center justify-center min-h-[80vh] px-4 max-w-md mx-auto w-full">
@@ -49,34 +88,13 @@ const ConnectScreen: React.FC<ConnectScreenProps> = ({ onConnect, onSkip }) => {
             exit={{ opacity: 0, scale: 0.9 }}
             className="fixed inset-0 z-50 bg-black flex flex-col"
           >
-            <div className="relative flex-1 flex items-center justify-center">
-              <Scanner
-                onScan={(result) => {
-                  if (result && result.length > 0) {
-                    setLastScanned(result[0].rawValue);
-                    handleScan(result[0].rawValue);
-                  }
-                }}
-                onError={(error) => {
-                  console.error(error);
-                  setError(error.message);
-                }}
-                components={{
-                  finder: true,
-                }}
-                constraints={{
-                  facingMode: 'environment'
-                }}
-                scanDelay={500}
-                styles={{
-                  container: { width: '100%', height: '100%' }
-                }}
-              />
+            <div className="relative flex-1 flex flex-col items-center justify-center">
+              <div id="qr-reader" className="w-full max-w-md"></div>
 
               {/* Overlay UI */}
               <div className="absolute top-0 left-0 right-0 p-6 flex justify-between items-start bg-gradient-to-b from-black/50 to-transparent">
                 <button
-                  onClick={() => setIsScanning(false)}
+                  onClick={stopScanner}
                   className="bg-white/20 backdrop-blur-md p-2 rounded-full text-white"
                 >
                   <X size={24} />
@@ -183,7 +201,7 @@ const ConnectScreen: React.FC<ConnectScreenProps> = ({ onConnect, onSkip }) => {
           </>
         )}
       </AnimatePresence>
-    </div >
+    </div>
   );
 };
 
