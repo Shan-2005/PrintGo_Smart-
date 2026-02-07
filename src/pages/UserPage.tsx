@@ -3,7 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { Smartphone, Monitor, Wifi, WifiOff } from 'lucide-react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import client, { databases } from '@/src/lib/appwrite';
+import client, { databases, storage } from '@/src/lib/appwrite';
 import { ID } from 'appwrite';
 import { AppStep, PrintSettings, PrintColorMode, PaperSize, FileData, PrintJob, PrintTransaction, PrintFlow } from '@/types';
 import ConnectScreen from '@/screens/ConnectScreen';
@@ -130,10 +130,35 @@ const UserPage: React.FC = () => {
             const dbId = import.meta.env.VITE_APPWRITE_DATABASE_ID;
             const collId = import.meta.env.VITE_APPWRITE_COLLECTION_ID;
 
+            // Upload File to Storage
+            const bucketId = import.meta.env.VITE_APPWRITE_BUCKET_ID;
+            let fileId = null;
+
+            if (currentJob.file && currentJob.file.file && bucketId) {
+                try {
+                    const response = await storage.createFile(
+                        bucketId,
+                        ID.unique(),
+                        currentJob.file.file
+                    );
+                    fileId = response.$id;
+                    console.log("File uploaded:", fileId);
+                } catch (uploadError) {
+                    console.error("File upload failed", uploadError);
+                    alert("Failed to upload file. Please try again.");
+                    return;
+                }
+            }
+
             // Prepare payload
+            const fileDataObj = {
+                ...currentJob.file,
+                fileId: fileId // Add fileId to metadata
+            };
+
             const payload = {
-                kioskId: connectedKioskId, // Nullable in Appwrite if configured
-                fileData: JSON.stringify(currentJob.file), // Store file metadata (and file object? no, JSON.stringify skips File object)
+                kioskId: connectedKioskId,
+                fileData: JSON.stringify(fileDataObj),
                 settings: JSON.stringify(currentJob.settings),
                 status: 'PENDING',
                 releaseCode: currentJob.releaseCode,
@@ -142,7 +167,6 @@ const UserPage: React.FC = () => {
             };
 
             // Create Document in Appwrite
-            // Note: We are using 'unique()' for ID, but we could use currentJob.id if we sanitize it
             await databases.createDocument(dbId, collId, 'unique()', payload);
 
             if (printFlow === PrintFlow.DIRECT && connectedKioskId) {

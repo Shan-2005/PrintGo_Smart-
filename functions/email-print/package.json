@@ -1,0 +1,10 @@
+{
+    "name": "email-print-function",
+    "version": "1.0.0",
+    "description": "Emails files to Epson Printer",
+    "main": "index.js",
+    "dependencies": {
+        "nodemailer": "^6.9.9",
+        "node-appwrite": "^11.1.0"
+    }
+}

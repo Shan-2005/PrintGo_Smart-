@@ -59,7 +59,11 @@ const ConnectScreen: React.FC<ConnectScreenProps> = ({ onConnect, onSkip }) => {
                 components={{
                   finder: true,
                 }}
-                formats={['qr_code', 'rm_qr_code', 'micro_qr_code']}
+                constraints={{
+                  facingMode: 'environment',
+                  aspectRatio: { ideal: 1 }
+                }}
+                formats={['qr_code', 'rm_qr_code']}
                 styles={{
                   container: { width: '100%', height: '100%' }
                 }}
