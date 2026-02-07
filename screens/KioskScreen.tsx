@@ -139,6 +139,16 @@ const KioskScreen: React.FC = () => {
       }, 40);
       return () => clearInterval(interval);
     }
+
+    // Auto-reset after completion
+    if (kioskStatus === 'COMPLETE') {
+      const resetTimer = setTimeout(() => {
+        console.log('Auto-resetting kiosk to home screen...');
+        resetKiosk();
+      }, 5000); // 5 seconds after showing completion message
+
+      return () => clearTimeout(resetTimer);
+    }
   }, [kioskStatus]);
 
   const resetKiosk = () => {
