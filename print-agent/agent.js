@@ -129,7 +129,18 @@ async function processJob(job) {
             status: 'COMPLETED'
         });
 
-        // Cleanup
+        // 6. Schedule Appwrite file deletion after 2 minutes
+        setTimeout(async () => {
+            try {
+                console.log(`🗑️  Deleting file from Appwrite: ${fileData.fileId}...`);
+                await storage.deleteFile(BUCKET_ID, fileData.fileId);
+                console.log(`✅ File deleted from storage`);
+            } catch (deleteErr) {
+                console.error("❌ Failed to delete file from Appwrite:", deleteErr.message);
+            }
+        }, 120000); // 2 minutes = 120,000 ms
+
+        // 7. Cleanup local temp files
         setTimeout(() => {
             // Delete the file we printed
             try { fs.unlinkSync(printFilePath); } catch (e) { }
