@@ -20,37 +20,50 @@ const KioskScreen: React.FC = () => {
     const dbId = import.meta.env.VITE_APPWRITE_DATABASE_ID;
     const collId = import.meta.env.VITE_APPWRITE_COLLECTION_ID;
 
-    const unsubscribe = client.subscribe(
-      [`databases.${dbId}.collections.${collId}.documents`],
-      (response) => {
-        if (response.events.includes('databases.*.collections.*.documents.*.create')) {
-          const job = response.payload as any; // Type assertion needed or precise type
+    console.log("Starting Realtime Subscription...", { dbId, collId });
 
-          // Check if job is for this Kiosk
-          if (job.kioskId === kioskId && job.status === 'PENDING') {
-            // Convert Appwrite doc to PrintJob (parsing JSON strings back)
-            const newJob: PrintJob = {
-              id: job.$id,
-              file: JSON.parse(job.fileData),
-              settings: JSON.parse(job.settings),
-              timestamp: job.timestamp,
-              amount: job.amount,
-              status: 'PENDING',
-              releaseCode: job.releaseCode,
-              kioskId: job.kioskId,
-              flow: 'DIRECT' as any
-            };
+    try {
+      const unsubscribe = client.subscribe(
+        [`databases.${dbId}.collections.${collId}.documents`],
+        (response) => {
+          console.log("Realtime Event Received:", response);
+          if (response.events.includes('databases.*.collections.*.documents.*.create')) {
+            const job = response.payload as any; // Type assertion needed or precise type
+            console.log("New Document Created:", job);
 
-            setActiveJob(newJob);
-            setKioskStatus('PRINTING');
+            // Check if job is for this Kiosk
+            if (job.kioskId === kioskId && job.status === 'PENDING') {
+              console.log("Job Matches Kiosk ID! Starting Print...");
+              // Convert Appwrite doc to PrintJob (parsing JSON strings back)
+              const newJob: PrintJob = {
+                id: job.$id,
+                file: JSON.parse(job.fileData),
+                settings: JSON.parse(job.settings),
+                timestamp: job.timestamp,
+                amount: job.amount,
+                status: 'PENDING',
+                releaseCode: job.releaseCode,
+                kioskId: job.kioskId,
+                flow: 'DIRECT' as any
+              };
+
+              setActiveJob(newJob);
+              setKioskStatus('PRINTING');
+            } else {
+              console.log("Job ignored (ID mismatch or status not PENDING)", { jobKioskId: job.kioskId, myKioskId: kioskId, status: job.status });
+            }
           }
         }
-      }
-    );
+      );
+      console.log("Subscribed successfully.");
 
-    return () => {
-      unsubscribe();
-    };
+      return () => {
+        unsubscribe();
+      };
+    } catch (err) {
+      console.error("Subscription Error:", err);
+      return () => { };
+    }
   }, []);
 
   const handleKeyPress = (num: string) => {
