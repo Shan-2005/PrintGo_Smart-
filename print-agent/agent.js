@@ -119,9 +119,36 @@ async function processJob(job) {
             throw new Error("Unsupported format");
         }
 
-        // 4. Print
-        console.log(`🖨️  Printing...`);
-        await ptp.print(printFilePath);
+        // 4. Parse Print Settings
+        let settings = {};
+        try {
+            settings = JSON.parse(job.settings);
+            console.log(`📋 Print Settings:`, settings);
+        } catch (e) {
+            console.warn("Could not parse settings, using defaults");
+        }
+
+        // Build printer options
+        const printOptions = {};
+
+        // Color mode: 'BW' or 'COLOR'
+        if (settings.colorMode === 'BW') {
+            printOptions.color = false; // Black and white
+        } else {
+            printOptions.color = true; // Color printing
+        }
+
+        // Number of copies
+        if (settings.copies && settings.copies > 0) {
+            printOptions.copies = settings.copies;
+        }
+
+        // Paper size (if supported by pdf-to-printer)
+        // Note: pdf-to-printer may have limited support for paper size
+        // You might need to configure this in your printer settings instead
+
+        console.log(`🖨️  Printing with options:`, printOptions);
+        await ptp.print(printFilePath, printOptions);
         console.log(`✅ Sent to Printer`);
 
         // 5. Update Status
