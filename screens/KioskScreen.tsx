@@ -196,7 +196,7 @@ const KioskScreen: React.FC = () => {
               <div className="absolute top-0 right-0 p-8 opacity-10 group-hover:opacity-20 transition-opacity">
                 <QrCode size={120} />
               </div>
-              <div className="w-64 h-64 bg-[#f8f9ff] rounded-[48px] p-8 border-4 border-[#f1f3f9] relative">
+              <div className="w-96 h-96 bg-[#f8f9ff] rounded-[48px] p-8 border-4 border-[#f1f3f9] relative">
                 <div className="p-4 bg-white rounded-[40px]">
                   <QRCode
                     value={`${window.location.protocol}//${window.location.host}/app?connect=${kioskId}`}
