@@ -209,19 +209,15 @@ const KioskScreen: React.FC = () => {
                 <QrCode size={80} className="md:w-[100px] md:h-[100px] lg:w-[120px] lg:h-[120px]" />
               </div>
               <div className="w-full aspect-square bg-[#f8f9ff] rounded-[32px] md:rounded-[40px] lg:rounded-[48px] p-4 md:p-6 lg:p-8 border-4 border-[#f1f3f9] relative flex items-center justify-center">
-                <div className="p-3 md:p-4 bg-white rounded-[24px] md:rounded-[32px] lg:rounded-[40px] w-full h-full flex items-center justify-center">
+                <div className="p-6 md:p-8 bg-white rounded-[24px] md:rounded-[32px] lg:rounded-[40px] w-full h-full flex items-center justify-center">
                   <QRCode
                     value={`${window.location.protocol}//${window.location.host}/app?connect=${kioskId}`}
                     size={256}
                     level="L"
+                    marginSize={4}
                     style={{ height: "auto", maxWidth: "100%", width: "100%" }}
                     viewBox={`0 0 256 256`}
                   />
-                </div>
-                <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                  <div className="w-10 h-10 md:w-12 md:h-12 lg:w-14 lg:h-14 bg-white rounded-xl md:rounded-2xl shadow-xl flex items-center justify-center border border-[#e1e2ec]">
-                    <Printer size={20} className="md:w-[24px] md:h-[24px] lg:w-[28px] lg:h-[28px] text-[#005fb0]" />
-                  </div>
                 </div>
               </div>
               <div className="text-center space-y-2 md:space-y-3">
