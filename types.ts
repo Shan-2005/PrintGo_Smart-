@@ -43,11 +43,12 @@ export interface FileData {
   type: string;
   pages: number;
   previewUrl?: string;
+  file?: File; // The actual file object for uploading
 }
 
 export interface PrintJob {
   id: string;
-  releaseCode?: string; 
+  releaseCode?: string;
   file: FileData;
   settings: PrintSettings;
   timestamp: number;
