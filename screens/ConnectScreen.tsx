@@ -12,6 +12,7 @@ interface ConnectScreenProps {
 const ConnectScreen: React.FC<ConnectScreenProps> = ({ onConnect, onSkip }) => {
   const [isScanning, setIsScanning] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [lastScanned, setLastScanned] = useState<string>("");
 
   const handleScan = (result: string) => {
     if (result) {
@@ -52,10 +53,14 @@ const ConnectScreen: React.FC<ConnectScreenProps> = ({ onConnect, onSkip }) => {
               <Scanner
                 onScan={(result) => {
                   if (result && result.length > 0) {
+                    setLastScanned(result[0].rawValue);
                     handleScan(result[0].rawValue);
                   }
                 }}
-                onError={(error) => console.error(error)}
+                onError={(error) => {
+                  console.error(error);
+                  setError(error.message);
+                }}
                 components={{
                   finder: true,
                 }}
@@ -63,7 +68,6 @@ const ConnectScreen: React.FC<ConnectScreenProps> = ({ onConnect, onSkip }) => {
                   facingMode: 'environment'
                 }}
                 scanDelay={500}
-                formats={['qr_code', 'rm_qr_code', 'micro_qr_code']}
                 styles={{
                   container: { width: '100%', height: '100%' }
                 }}
@@ -82,6 +86,7 @@ const ConnectScreen: React.FC<ConnectScreenProps> = ({ onConnect, onSkip }) => {
               <div className="absolute bottom-0 left-0 right-0 p-8 bg-gradient-to-t from-black/80 to-transparent text-white text-center">
                 <p className="font-medium text-lg">Scan Kiosk QR Code</p>
                 <p className="text-sm opacity-80 mt-1">Point your camera at the kiosk screen</p>
+                {lastScanned && <p className="text-xs font-mono text-yellow-400 bg-black/50 p-1 mt-2 rounded break-all">RAW: {lastScanned}</p>}
                 {error && <p className="text-red-400 mt-2 font-medium">{error}</p>}
               </div>
             </div>
