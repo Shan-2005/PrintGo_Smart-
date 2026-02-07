@@ -53,7 +53,7 @@ export interface PrintJob {
   settings: PrintSettings;
   timestamp: number;
   amount: string;
-  status: 'PENDING' | 'COMPLETED' | 'PRINTING';
+  status: 'PENDING' | 'COMPLETED' | 'PRINTING' | 'CONNECTED';
   kioskId?: string;
   flow: PrintFlow;
 }

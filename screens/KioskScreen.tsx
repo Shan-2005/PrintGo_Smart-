@@ -32,25 +32,31 @@ const KioskScreen: React.FC = () => {
             console.log("New Document Created:", job);
 
             // Check if job is for this Kiosk
-            if (job.kioskId === kioskId && job.status === 'PENDING') {
-              console.log("Job Matches Kiosk ID! Starting Print...");
-              // Convert Appwrite doc to PrintJob (parsing JSON strings back)
-              const newJob: PrintJob = {
-                id: job.$id,
-                file: JSON.parse(job.fileData),
-                settings: JSON.parse(job.settings),
-                timestamp: job.timestamp,
-                amount: job.amount,
-                status: 'PENDING',
-                releaseCode: job.releaseCode,
-                kioskId: job.kioskId,
-                flow: 'DIRECT' as any
-              };
+            if (job.kioskId === kioskId) {
+              if (job.status === 'CONNECTED') {
+                console.log("User Connected Handshake Received!");
+                setConnectedUser('User'); // Could pass name in handshake later
+                setKioskStatus('CONNECTED');
+              } else if (job.status === 'PENDING') {
+                console.log("Job Matches Kiosk ID! Starting Print...");
+                // Convert Appwrite doc to PrintJob (parsing JSON strings back)
+                const newJob: PrintJob = {
+                  id: job.$id,
+                  file: JSON.parse(job.fileData),
+                  settings: JSON.parse(job.settings),
+                  timestamp: job.timestamp,
+                  amount: job.amount,
+                  status: 'PENDING',
+                  releaseCode: job.releaseCode,
+                  kioskId: job.kioskId,
+                  flow: 'DIRECT' as any
+                };
 
-              setActiveJob(newJob);
-              setKioskStatus('PRINTING');
+                setActiveJob(newJob);
+                setKioskStatus('PRINTING');
+              }
             } else {
-              console.log("Job ignored (ID mismatch or status not PENDING)", { jobKioskId: job.kioskId, myKioskId: kioskId, status: job.status });
+              console.log("Job ignored (ID mismatch)", { jobKioskId: job.kioskId, myKioskId: kioskId });
             }
           }
         }

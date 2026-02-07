@@ -58,9 +58,28 @@ const UserPage: React.FC = () => {
         }
     }, []);
 
-    const handleConnect = (kioskId: string) => {
+    const handleConnect = async (kioskId: string) => {
         setConnectedKioskId(kioskId);
         setPrintFlow(PrintFlow.DIRECT);
+
+        // Send Handshake to Kiosk
+        try {
+            const dbId = import.meta.env.VITE_APPWRITE_DATABASE_ID;
+            const collId = import.meta.env.VITE_APPWRITE_COLLECTION_ID;
+
+            await databases.createDocument(dbId, collId, 'unique()', {
+                kioskId: kioskId,
+                status: 'CONNECTED',
+                fileData: '{}', // Dummy data to satisfy schema if needed
+                settings: '{}',
+                releaseCode: '00000',
+                amount: '0',
+                timestamp: Date.now()
+            });
+        } catch (e) {
+            console.error("Handshake failed", e);
+        }
+
         localStorage.setItem(`kiosk_status_${kioskId}`, JSON.stringify({
             status: 'CONNECTED',
             userName: 'Alex',
