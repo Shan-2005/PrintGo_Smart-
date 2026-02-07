@@ -1,0 +1,71 @@
+
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <title>PrintGo - Smart Vending</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Google+Sans:wght@400;500;700&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+    <style>
+      :root {
+        --md-sys-color-primary: #005fb0;
+        --md-sys-color-on-primary: #ffffff;
+        --md-sys-color-primary-container: #d3e4ff;
+        --md-sys-color-on-primary-container: #001c38;
+        --md-sys-color-surface: #fdfcff;
+        --md-sys-color-surface-container-low: #f7f9ff;
+        --md-sys-color-surface-container: #f1f3f9;
+        --md-sys-color-on-surface: #1a1c1e;
+        --md-sys-color-outline-variant: #e1e2ec;
+      }
+      body {
+        font-family: 'Inter', sans-serif;
+        background-color: var(--md-sys-color-surface);
+        color: var(--md-sys-color-on-surface);
+        -webkit-tap-highlight-color: transparent;
+        overflow-x: hidden;
+      }
+      h1, h2, h3, h4, .font-google-sans {
+        font-family: 'Google Sans', sans-serif;
+      }
+      .m3-card {
+        background-color: #ffffff;
+        border-radius: 32px;
+        transition: all 0.3s cubic-bezier(0.2, 0, 0, 1);
+      }
+      .m3-button-shadow {
+        box-shadow: 0 4px 12px rgba(0, 95, 176, 0.15);
+      }
+      /* Custom Scrollbar */
+      ::-webkit-scrollbar {
+        width: 6px;
+      }
+      ::-webkit-scrollbar-track {
+        background: transparent;
+      }
+      ::-webkit-scrollbar-thumb {
+        background: #d1d5db;
+        border-radius: 10px;
+      }
+      .glass-effect {
+        backdrop-filter: blur(12px);
+        background: rgba(255, 255, 255, 0.7);
+      }
+    </style>
+    <script type="importmap">
+    {
+      "imports": {
+        "framer-motion": "https://esm.sh/framer-motion@^12.33.0",
+        "lucide-react": "https://esm.sh/lucide-react@^0.563.0",
+        "react/": "https://esm.sh/react@^19.2.4/",
+        "react": "https://esm.sh/react@^19.2.4",
+        "react-dom/": "https://esm.sh/react-dom@^19.2.4/"
+      }
+    }
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+  </body>
+</html>

@@ -1,0 +1,7 @@
+{
+  "name": "PrintGo Smart Vending",
+  "description": "A modern Material You (Material 3) smart printer kiosk application with intuitive file uploading, real-time price calculation, and seamless payment integration.",
+  "requestFramePermissions": [
+    "camera"
+  ]
+}
