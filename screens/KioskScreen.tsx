@@ -101,6 +101,18 @@ const KioskScreen: React.FC = () => {
           flow: 'CLOUD' as any
         };
         setActiveJob(foundJob);
+
+        try {
+          // Trigger Print Agent by updating status to QUEUED
+          await databases.updateDocument(dbId, collId, job.$id, {
+            status: 'QUEUED'
+          });
+          console.log("Status updated to QUEUED");
+        } catch (updateError: any) {
+          console.error("Failed to update status:", updateError);
+          alert(`Error: Kiosk cannot update job. Check Permissions! ${updateError.message}`);
+        }
+
         setKioskStatus('PRINTING');
       } else {
         setKioskStatus('ERROR');

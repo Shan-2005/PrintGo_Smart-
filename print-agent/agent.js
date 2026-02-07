@@ -25,12 +25,12 @@ console.log(`Target: ${process.env.VITE_APPWRITE_ENDPOINT}`);
 
 async function checkJobs() {
     try {
-        // List documents with status 'PENDING'
+        // List documents with status 'QUEUED' (Ready to Print)
         const response = await databases.listDocuments(
             DB_ID,
             COLL_ID,
             [
-                sdk.Query.equal('status', 'PENDING')
+                sdk.Query.equal('status', 'QUEUED')
             ]
         );
 

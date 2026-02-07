@@ -160,7 +160,7 @@ const UserPage: React.FC = () => {
                 kioskId: connectedKioskId,
                 fileData: JSON.stringify(fileDataObj),
                 settings: JSON.stringify(currentJob.settings),
-                status: 'PENDING',
+                status: printFlow === PrintFlow.DIRECT ? 'QUEUED' : 'PENDING',
                 releaseCode: currentJob.releaseCode,
                 amount: currentJob.amount,
                 timestamp: currentJob.timestamp
