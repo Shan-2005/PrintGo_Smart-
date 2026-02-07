@@ -141,6 +141,31 @@ const ConnectScreen: React.FC<ConnectScreenProps> = ({ onConnect, onSkip }) => {
               </button>
             </motion.div>
 
+            {/* Manual Entry Fallback */}
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ delay: 0.3 }}
+              className="mt-6 w-full max-w-sm"
+            >
+              <div className="relative">
+                <input
+                  type="text"
+                  placeholder="Enter Kiosk ID Manually"
+                  className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-[#005fb0] focus:ring-2 focus:ring-blue-100 outline-none transition-all text-center font-mono uppercase tracking-widest placeholder:normal-case placeholder:tracking-normal placeholder:font-sans"
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      const val = (e.target as HTMLInputElement).value.trim();
+                      if (val.length > 0) onConnect(val);
+                    }
+                  }}
+                />
+              </div>
+              <p className="text-[10px] text-gray-400 text-center mt-2">
+                Can't scan? Type the code shown on the screen.
+              </p>
+            </motion.div>
+
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
@@ -153,7 +178,7 @@ const ConnectScreen: React.FC<ConnectScreenProps> = ({ onConnect, onSkip }) => {
           </>
         )}
       </AnimatePresence>
-    </div>
+    </div >
   );
 };
 
