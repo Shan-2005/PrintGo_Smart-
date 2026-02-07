@@ -128,14 +128,13 @@ async function processJob(job) {
             console.warn("Could not parse settings, using defaults");
         }
 
+
         // Build printer options
         const printOptions = {};
 
         // Color mode: 'BW' or 'COLOR'
         if (settings.colorMode === 'BW') {
-            printOptions.color = false; // Black and white
-        } else {
-            printOptions.color = true; // Color printing
+            printOptions.monochrome = true; // Force grayscale/black and white
         }
 
         // Number of copies
