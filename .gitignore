@@ -22,3 +22,7 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Print Agent Temp Files
+print-agent/temp_*
+*.pdf

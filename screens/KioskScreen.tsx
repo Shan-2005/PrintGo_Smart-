@@ -213,6 +213,7 @@ const KioskScreen: React.FC = () => {
                   <QRCode
                     value={`${window.location.protocol}//${window.location.host}/app?connect=${kioskId}`}
                     size={256}
+                    level="L"
                     style={{ height: "auto", maxWidth: "100%", width: "100%" }}
                     viewBox={`0 0 256 256`}
                   />
