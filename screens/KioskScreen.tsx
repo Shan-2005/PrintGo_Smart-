@@ -177,27 +177,27 @@ const KioskScreen: React.FC = () => {
                 <div className="inline-flex items-center gap-2 px-3 py-1 bg-[#d3e4ff]/10 text-[#d3e4ff] rounded-full text-[10px] font-black uppercase tracking-[0.2em] border border-[#d3e4ff]/20">
                   Terminal Online
                 </div>
-                <h2 className="text-8xl font-google-sans font-bold text-white tracking-tighter leading-[0.9]">Start <br /><span className="text-[#d3e4ff]">Printing.</span></h2>
-                <p className="text-2xl text-white/40 leading-relaxed font-medium max-w-sm">Scan the QR code to link your device or use a release code.</p>
+                <h2 className="text-5xl md:text-8xl font-google-sans font-bold text-white tracking-tighter leading-[0.9]">Start <br /><span className="text-[#d3e4ff]">Printing.</span></h2>
+                <p className="text-lg md:text-2xl text-white/40 leading-relaxed font-medium max-w-sm">Scan the QR code to link your device or use a release code.</p>
               </div>
 
-              <button onClick={() => setKioskStatus('MANUAL_ENTRY')} className="group flex items-center gap-6 p-8 bg-white/5 border border-white/10 rounded-[40px] text-white font-bold hover:bg-white/10 transition-all w-full max-w-md">
-                <div className="w-16 h-16 bg-[#d3e4ff]/10 rounded-2xl flex items-center justify-center text-[#d3e4ff] group-hover:scale-110 transition-transform">
-                  <Keyboard size={32} />
+              <button onClick={() => setKioskStatus('MANUAL_ENTRY')} className="group flex items-center gap-6 p-6 md:p-8 bg-white/5 border border-white/10 rounded-[32px] md:rounded-[40px] text-white font-bold hover:bg-white/10 transition-all w-full max-w-md">
+                <div className="w-12 h-12 md:w-16 md:h-16 bg-[#d3e4ff]/10 rounded-2xl flex items-center justify-center text-[#d3e4ff] group-hover:scale-110 transition-transform">
+                  <Keyboard size={24} className="md:w-8 md:h-8" />
                 </div>
                 <div className="text-left">
-                  <div className="text-2xl font-google-sans">Release Code</div>
-                  <div className="text-sm text-white/30 font-medium">Enter 5-digit ticket manually</div>
+                  <div className="text-xl md:text-2xl font-google-sans">Release Code</div>
+                  <div className="text-xs md:text-sm text-white/30 font-medium">Enter 5-digit ticket manually</div>
                 </div>
               </button>
             </div>
 
-            <div className="bg-white p-14 rounded-[72px] flex flex-col items-center gap-10 shadow-2xl relative overflow-hidden group">
+            <div className="bg-white p-6 md:p-14 rounded-[40px] md:rounded-[72px] flex flex-col items-center gap-6 md:gap-10 shadow-2xl relative overflow-hidden group w-full max-w-md mx-auto">
               <div className="absolute top-0 right-0 p-8 opacity-10 group-hover:opacity-20 transition-opacity">
-                <QrCode size={120} />
+                <QrCode size={80} className="md:w-[120px] md:h-[120px]" />
               </div>
-              <div className="w-96 h-96 bg-[#f8f9ff] rounded-[48px] p-8 border-4 border-[#f1f3f9] relative">
-                <div className="p-4 bg-white rounded-[40px]">
+              <div className="w-full aspect-square bg-[#f8f9ff] rounded-[32px] md:rounded-[48px] p-4 md:p-8 border-4 border-[#f1f3f9] relative flex items-center justify-center">
+                <div className="p-3 md:p-4 bg-white rounded-[24px] md:rounded-[40px] w-full h-full flex items-center justify-center">
                   <QRCode
                     value={`${window.location.protocol}//${window.location.host}/app?connect=${kioskId}`}
                     size={256}
@@ -205,15 +205,15 @@ const KioskScreen: React.FC = () => {
                     viewBox={`0 0 256 256`}
                   />
                 </div>
-                <div className="absolute inset-0 flex items-center justify-center">
-                  <div className="w-14 h-14 bg-white rounded-2xl shadow-xl flex items-center justify-center border border-[#e1e2ec]">
-                    <Printer size={28} className="text-[#005fb0]" />
+                <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                  <div className="w-10 h-10 md:w-14 md:h-14 bg-white rounded-xl md:rounded-2xl shadow-xl flex items-center justify-center border border-[#e1e2ec]">
+                    <Printer size={20} className="md:w-[28px] md:h-[28px] text-[#005fb0]" />
                   </div>
                 </div>
               </div>
-              <div className="text-center space-y-3">
-                <div className="text-3xl font-google-sans font-bold text-[#001c38]">Kiosk Terminal {kioskId}</div>
-                <div className="px-8 py-3 bg-[#005fb0] text-white rounded-full text-xs font-black uppercase tracking-[0.2em] shadow-lg shadow-blue-200">
+              <div className="text-center space-y-2 md:space-y-3">
+                <div className="text-xl md:text-3xl font-google-sans font-bold text-[#001c38]">Kiosk Terminal {kioskId}</div>
+                <div className="px-6 py-2 md:px-8 md:py-3 bg-[#005fb0] text-white rounded-full text-[10px] md:text-xs font-black uppercase tracking-[0.2em] shadow-lg shadow-blue-200">
                   Scan with your Phone
                 </div>
               </div>
