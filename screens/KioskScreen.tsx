@@ -262,12 +262,14 @@ const KioskScreen: React.FC = () => {
   );
 
   return (
-    <div className="min-h-screen bg-[#000d1a] flex items-center justify-center p-4 lg:p-12 overflow-hidden">
-      {/* 16:9 Aspect Ratio Container */}
-      <div className="relative w-full max-w-[1920px] aspect-video bg-[#000d1a] rounded-[40px] border border-white/5 shadow-[0_0_100px_rgba(0,0,0,0.5)] flex flex-col overflow-hidden">
-        {renderHeader()}
+    <div className="min-h-screen bg-[#000d1a] flex flex-col relative overflow-hidden">
+      {/* Full-Bleed Terminal View */}
+      <div className="flex-1 flex flex-col w-full h-full">
+        <div className="px-12 py-8">
+          {renderHeader()}
+        </div>
 
-        <main className="flex-1 flex flex-col items-center justify-center -mt-6">
+        <main className="flex-1 flex flex-col items-center justify-center">
           <AnimatePresence mode="wait">
             {/* --- IDLE STATE --- */}
             {status === 'IDLE' && (
@@ -276,7 +278,7 @@ const KioskScreen: React.FC = () => {
                 initial={{ opacity: 0, scale: 0.95 }}
                 animate={{ opacity: 1, scale: 1 }}
                 exit={{ opacity: 0, scale: 1.05 }}
-                className="w-full grid grid-cols-1 lg:grid-cols-2 gap-24 items-center px-16"
+                className="w-full grid grid-cols-1 lg:grid-cols-2 gap-32 items-center px-24 pb-20"
               >
                 <div className="space-y-12">
                   <div className="space-y-6">
