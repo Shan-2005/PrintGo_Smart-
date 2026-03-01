@@ -24,115 +24,21 @@ const PaymentScreen: React.FC<PaymentScreenProps> = ({ settings, amount, onPayme
   const [errorMessage, setErrorMessage] = useState<string>('');
 
   const openRazorpayCheckout = async () => {
+    // DEV BYPASS: Skip actual Razorpay integration to rapidly test Print Agent
     setPaymentState('CREATING_ORDER');
     setErrorMessage('');
 
-    try {
-      // 1. Create order on server
-      const orderRes = await fetch('/api/create-order', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          amount: parseFloat(amount),
-          currency: 'INR',
-          receipt: `printgo_${Date.now()}`,
-        }),
-      });
+    setTimeout(() => {
+      setPaymentState('VERIFYING');
 
-      if (!orderRes.ok) {
-        throw new Error('Failed to create payment order');
-      }
+      setTimeout(() => {
+        setPaymentState('SUCCESS');
 
-      const orderData = await orderRes.json();
-      setPaymentState('AWAITING_PAYMENT');
-
-      // 2. Open Razorpay Checkout
-      const options = {
-        key: import.meta.env.VITE_RAZORPAY_KEY_ID,
-        amount: orderData.amount,
-        currency: orderData.currency,
-        name: 'PrintGo Smart',
-        description: `Print Job • ${settings.copies} ${settings.copies > 1 ? 'copies' : 'copy'} • ${settings.colorMode === 'COLOR' ? 'Color' : 'B&W'}`,
-        order_id: orderData.orderId,
-        handler: async function (response: any) {
-          // 3. Verify payment on server
-          setPaymentState('VERIFYING');
-          try {
-            const verifyRes = await fetch('/api/verify-payment', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                razorpay_order_id: response.razorpay_order_id,
-                razorpay_payment_id: response.razorpay_payment_id,
-                razorpay_signature: response.razorpay_signature,
-              }),
-            });
-
-            const verifyData = await verifyRes.json();
-
-            if (verifyData.verified) {
-              setPaymentState('SUCCESS');
-              setTimeout(() => {
-                onPaymentSuccess(response.razorpay_payment_id);
-              }, 1500);
-            } else {
-              setPaymentState('ERROR');
-              setErrorMessage('Payment verification failed. Your money is safe — if debited, it will be refunded automatically.');
-            }
-          } catch {
-            setPaymentState('ERROR');
-            setErrorMessage('Could not verify payment. Please contact support if money was debited.');
-          }
-        },
-        modal: {
-          ondismiss: function () {
-            setPaymentState('READY');
-          },
-          confirm_close: true,
-        },
-        prefill: {},
-        theme: {
-          color: '#005fb0',
-          backdrop_color: 'rgba(0, 28, 56, 0.85)',
-        },
-        config: {
-          display: {
-            blocks: {
-              utib: {
-                name: 'Pay using UPI',
-                instruments: [
-                  { method: 'upi' },
-                ],
-              },
-              other: {
-                name: 'Other Methods',
-                instruments: [
-                  { method: 'card' },
-                  { method: 'netbanking' },
-                  { method: 'wallet' },
-                ],
-              },
-            },
-            sequence: ['block.utib', 'block.other'],
-            preferences: {
-              show_default_blocks: false,
-            },
-          },
-        },
-      };
-
-      const rzp = new window.Razorpay(options);
-
-      rzp.on('payment.failed', function (response: any) {
-        setPaymentState('ERROR');
-        setErrorMessage(response.error?.description || 'Payment failed. Please try again.');
-      });
-
-      rzp.open();
-    } catch (error: any) {
-      setPaymentState('ERROR');
-      setErrorMessage(error.message || 'Something went wrong. Please try again.');
-    }
+        setTimeout(() => {
+          onPaymentSuccess(`dev_test_pay_${Date.now()}`);
+        }, 1500);
+      }, 1000);
+    }, 1000);
   };
 
   const renderStateContent = () => {

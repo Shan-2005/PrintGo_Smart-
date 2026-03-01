@@ -106,9 +106,8 @@ const UserPage: React.FC = () => {
     };
 
     const handleSkipConnect = () => {
-        setDebugInfo('DEV Bypass: Forcing connection to 102 for testing');
-        setConnectedKioskId('102');
-        setPrintFlow(PrintFlow.DIRECT);
+        setConnectedKioskId(null);
+        setPrintFlow(PrintFlow.CLOUD);
         setCurrentStep(AppStep.UPLOAD);
     };
 
