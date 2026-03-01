@@ -23,6 +23,10 @@ const KioskScreen: React.FC = () => {
     const dbId = import.meta.env.VITE_APPWRITE_DATABASE_ID;
     const collId = import.meta.env.VITE_APPWRITE_COLLECTION_ID;
     const projectId = import.meta.env.VITE_APPWRITE_PROJECT_ID;
+    const endpoint = import.meta.env.VITE_APPWRITE_ENDPOINT;
+
+    // Force client configuration on mount just in case initial hydration missed it
+    client.setEndpoint(endpoint).setProject(projectId);
 
     console.log("Starting Realtime Subscription...", { dbId, collId });
     setDebugInfo(`Init. Project: ${projectId || 'MISSING'}, DB: ${dbId || 'MISSING'}`);

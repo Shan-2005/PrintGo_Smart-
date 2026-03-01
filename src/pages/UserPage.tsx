@@ -66,7 +66,11 @@ const UserPage: React.FC = () => {
         try {
             const dbId = import.meta.env.VITE_APPWRITE_DATABASE_ID;
             const collId = import.meta.env.VITE_APPWRITE_COLLECTION_ID;
-            setDebugInfo(`Appwrite Connect Attempt: Project:${import.meta.env.VITE_APPWRITE_PROJECT_ID}`);
+            const projectId = import.meta.env.VITE_APPWRITE_PROJECT_ID;
+            const endpoint = import.meta.env.VITE_APPWRITE_ENDPOINT;
+            client.setEndpoint(endpoint).setProject(projectId);
+
+            setDebugInfo(`Appwrite Connect Attempt: Project:${projectId}`);
 
             await databases.createDocument(dbId, collId, ID.unique(), {
                 kioskId: kioskId,
