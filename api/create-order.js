@@ -15,15 +15,32 @@ module.exports = async function handler(req, res) {
     }
 
     try {
-        const { amount, currency = 'INR', receipt } = req.body;
+        let bodyPayload = req.body;
+        if (typeof req.body === 'string') {
+            try {
+                bodyPayload = JSON.parse(req.body);
+            } catch (e) {
+                // Keep as string if parsing fails, let validation catch it
+            }
+        }
+
+        const { amount, currency = 'INR', receipt } = bodyPayload || {};
 
         if (!amount || amount <= 0) {
-            return res.status(400).json({ error: 'Invalid amount' });
+            return res.status(400).json({ error: 'Invalid amount or missing body' });
+        }
+
+        const key_id = process.env.RAZORPAY_KEY_ID || process.env.VITE_RAZORPAY_KEY_ID;
+        const key_secret = process.env.RAZORPAY_KEY_SECRET;
+
+        if (!key_id || !key_secret) {
+            console.error('CRITICAL: Razorpay keys are missing in Vercel environment variables.');
+            return res.status(500).json({ error: 'Server misconfiguration: Payment gateway unavailable' });
         }
 
         const razorpay = new Razorpay({
-            key_id: process.env.RAZORPAY_KEY_ID || process.env.VITE_RAZORPAY_KEY_ID,
-            key_secret: process.env.RAZORPAY_KEY_SECRET,
+            key_id,
+            key_secret,
         });
 
         const order = await razorpay.orders.create({
