@@ -144,11 +144,9 @@ const UserPage: React.FC = () => {
             flow: printFlow
         };
 
+        console.log("Proceeding to payment for job:", newJob.id);
         setCurrentJob(newJob);
-
-        // TEST BYPASS: Skip the Payment screen entirely and auto-submit
-        // Passing the job object directly TO handlePaymentSuccess fixes the race condition!
-        setTimeout(() => handlePaymentSuccess(undefined, newJob), 500);
+        setCurrentStep(AppStep.PAYMENT);
     };
 
     const handlePaymentSuccess = async (paymentId?: string, jobOverride?: PrintJob) => {

@@ -12,6 +12,7 @@ export function apiDevPlugin(env) {
         configureServer(server) {
             // POST /api/create-order
             server.middlewares.use('/api/create-order', async (req, res) => {
+                console.log(`[API] ${req.method} ${req.url}`);
                 if (req.method === 'OPTIONS') {
                     res.setHeader('Access-Control-Allow-Origin', '*');
                     res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
@@ -49,6 +50,7 @@ export function apiDevPlugin(env) {
                         receipt: receipt || `printgo_${Date.now()}`,
                     });
 
+                    console.log('✅ Order created:', order.id);
                     res.statusCode = 200;
                     res.setHeader('Content-Type', 'application/json');
                     res.end(JSON.stringify({
@@ -66,6 +68,7 @@ export function apiDevPlugin(env) {
 
             // POST /api/verify-payment
             server.middlewares.use('/api/verify-payment', async (req, res) => {
+                console.log(`[API] ${req.method} ${req.url}`);
                 if (req.method === 'OPTIONS') {
                     res.setHeader('Access-Control-Allow-Origin', '*');
                     res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');

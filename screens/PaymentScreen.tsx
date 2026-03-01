@@ -24,21 +24,91 @@ const PaymentScreen: React.FC<PaymentScreenProps> = ({ settings, amount, onPayme
   const [errorMessage, setErrorMessage] = useState<string>('');
 
   const openRazorpayCheckout = async () => {
-    // DEV BYPASS: Skip actual Razorpay integration to rapidly test Print Agent
     setPaymentState('CREATING_ORDER');
     setErrorMessage('');
 
-    setTimeout(() => {
-      setPaymentState('VERIFYING');
+    try {
+      // 1. Create Order via our API
+      const response = await fetch('/api/create-order', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          amount: parseFloat(amount),
+          currency: 'INR',
+          receipt: `printgo_${Date.now()}`
+        }),
+      });
 
-      setTimeout(() => {
-        setPaymentState('SUCCESS');
+      const orderData = await response.json();
+      if (!response.ok) throw new Error(orderData.error || 'Failed to create order');
 
-        setTimeout(() => {
-          onPaymentSuccess(`dev_test_pay_${Date.now()}`);
-        }, 1500);
-      }, 1000);
-    }, 1000);
+      const keyId = import.meta.env.VITE_RAZORPAY_KEY_ID;
+
+      // 2. Configure Razorpay Options
+      const options = {
+        key: keyId,
+        amount: orderData.amount,
+        currency: orderData.currency,
+        name: 'PrintGo Smart',
+        description: `${settings.copies}x ${settings.paperSize} Printing`,
+        image: '/logo.png',
+        order_id: orderData.orderId,
+        handler: async (response: any) => {
+          // 3. Verification Step
+          setPaymentState('VERIFYING');
+          try {
+            const verifyRes = await fetch('/api/verify-payment', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                razorpay_order_id: response.razorpay_order_id,
+                razorpay_payment_id: response.razorpay_payment_id,
+                razorpay_signature: response.razorpay_signature
+              }),
+            });
+
+            const verifyData = await verifyRes.json();
+            if (verifyData.verified) {
+              setPaymentState('SUCCESS');
+              setTimeout(() => {
+                onPaymentSuccess(response.razorpay_payment_id);
+              }, 1500);
+            } else {
+              throw new Error(verifyData.error || 'Payment verification failed');
+            }
+          } catch (err: any) {
+            setPaymentState('ERROR');
+            setErrorMessage(err.message || 'Verification failed');
+          }
+        },
+        prefill: {
+          name: 'PrintGo Guest',
+          email: 'guest@printgo.in',
+          contact: '9999999999'
+        },
+        theme: {
+          color: '#005fb0',
+        },
+        modal: {
+          ondismiss: () => {
+            setPaymentState('READY');
+          }
+        },
+        retry: {
+          enabled: true,
+          max_count: 3
+        }
+      };
+
+      const rzp = new window.Razorpay(options);
+      rzp.open();
+      setPaymentState('AWAITING_PAYMENT');
+
+    } catch (error: any) {
+      console.error('Checkout Error:', error);
+      setPaymentState('ERROR');
+      setErrorMessage(error.message || 'Failed to initiate checkout');
+    }
   };
 
   const renderStateContent = () => {
