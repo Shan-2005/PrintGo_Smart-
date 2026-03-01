@@ -86,6 +86,24 @@ const PaymentScreen: React.FC<PaymentScreenProps> = ({ settings, amount, onPayme
           email: 'guest@printgo.in',
           contact: '9999999999'
         },
+        config: {
+          display: {
+            blocks: {
+              upi: {
+                name: "Pay via UPI / Apps",
+                instruments: [
+                  {
+                    method: "upi"
+                  }
+                ]
+              }
+            },
+            sequence: ["block.upi"],
+            preferences: {
+              show_default_blocks: true
+            }
+          }
+        },
         theme: {
           color: '#005fb0',
         },
