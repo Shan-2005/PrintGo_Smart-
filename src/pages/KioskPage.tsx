@@ -10,7 +10,7 @@ const KioskPage: React.FC = () => {
 
     return (
         <div className="min-h-screen transition-all duration-1000 bg-[#000d1a] text-[#e1e2ec]">
-            <div className="min-h-screen flex flex-col relative w-full overflow-hidden">
+            <div className="h-screen flex flex-col relative w-full overflow-hidden">
                 {/* Redundant header removed for full-screen immersion */}
 
                 <main className="flex-1 flex flex-col">

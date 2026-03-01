@@ -262,10 +262,10 @@ const KioskScreen: React.FC = () => {
   );
 
   return (
-    <div className="min-h-screen bg-[#000d1a] flex flex-col relative overflow-hidden">
+    <div className="h-screen w-screen bg-[#000d1a] flex flex-col relative overflow-hidden">
       {/* Full-Bleed Terminal View */}
-      <div className="flex-1 flex flex-col w-full h-full">
-        <div className="px-12 py-8">
+      <div className="flex-1 flex flex-col w-full h-full p-4 lg:p-8">
+        <div className="px-6">
           {renderHeader()}
         </div>
 
@@ -278,7 +278,7 @@ const KioskScreen: React.FC = () => {
                 initial={{ opacity: 0, scale: 0.95 }}
                 animate={{ opacity: 1, scale: 1 }}
                 exit={{ opacity: 0, scale: 1.05 }}
-                className="w-full grid grid-cols-1 lg:grid-cols-2 gap-32 items-center px-24 pb-20"
+                className="w-full flex-1 grid grid-cols-1 lg:grid-cols-2 gap-12 lg:gap-24 items-center px-8 lg:px-24"
               >
                 <div className="space-y-12">
                   <div className="space-y-6">
@@ -292,7 +292,7 @@ const KioskScreen: React.FC = () => {
                     <h2 className="text-6xl md:text-8xl lg:text-9xl font-google-sans font-bold text-white tracking-tighter leading-[0.85]">
                       Print <br /><span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-300 to-indigo-200">Better.</span>
                     </h2>
-                    <p className="text-xl md:text-2xl text-white/40 leading-relaxed font-medium max-w-md">
+                    <p className="text-lg lg:text-2xl text-white/40 leading-relaxed font-medium max-w-md">
                       Scan the secure code to link your device or use a digital release code.
                     </p>
                   </div>
@@ -319,7 +319,7 @@ const KioskScreen: React.FC = () => {
                     <div className="p-8 bg-blue-50 rounded-[48px] w-full aspect-square flex items-center justify-center border-4 border-white/50 shadow-inner">
                       <QRCode
                         value={`${window.location.protocol}//${window.location.host}/app?connect=${KIOSK_ID}`}
-                        size={320}
+                        size={300}
                         level="H"
                         marginSize={0}
                         className="w-full h-auto"
