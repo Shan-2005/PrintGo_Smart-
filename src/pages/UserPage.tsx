@@ -78,18 +78,21 @@ const UserPage: React.FC = () => {
                 timestamp: Date.now()
             });
 
+            // Only advance if Appwrite succeeded
+            localStorage.setItem(`kiosk_status_${kioskId}`, JSON.stringify({
+                status: 'CONNECTED',
+                userName: 'Alex',
+                timestamp: Date.now()
+            }));
+
+            setCurrentStep(AppStep.UPLOAD);
+
         } catch (e: any) {
             console.error("Handshake failed", e);
             setDebugInfo(`Handshake Fail: ${e?.message || JSON.stringify(e)}`);
+            // Stop progression
+            return;
         }
-
-        localStorage.setItem(`kiosk_status_${kioskId}`, JSON.stringify({
-            status: 'CONNECTED',
-            userName: 'Alex',
-            timestamp: Date.now()
-        }));
-
-        setCurrentStep(AppStep.UPLOAD);
     };
 
     const handleSkipConnect = () => {
