@@ -34,9 +34,15 @@ const KioskScreen: React.FC = () => {
             // Check if job is for this Kiosk
             if (job.kioskId === kioskId) {
               if (job.status === 'CONNECTED') {
-                console.log("User Connected Handshake Received!");
+                console.log("User Connected Handshake Received! Acknowledging...");
                 setConnectedUser('User'); // Could pass name in handshake later
                 setKioskStatus('CONNECTED');
+
+                // Write back acknowledgment so the phone knows the kiosk received it
+                databases.updateDocument(dbId, collId, job.$id, {
+                  status: 'ACK_CONNECTED'
+                }).catch(err => console.error("Failed to ack handshake:", err));
+
               } else if (job.status === 'PENDING') {
                 console.log("Job Matches Kiosk ID! Starting Print...");
                 // Convert Appwrite doc to PrintJob (parsing JSON strings back)
