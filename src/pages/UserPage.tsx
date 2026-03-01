@@ -75,32 +75,7 @@ const UserPage: React.FC = () => {
 
             setDebugInfo(`Appwrite Connect Attempt: Project:${projectId}`);
 
-            // PRE-FLIGHT CHECK: Is the Kiosk already in use?
-            const threeMinsAgo = new Date(Date.now() - 3 * 60000).toISOString();
-
-            const activeSessions = await databases.listDocuments(
-                dbId,
-                collId,
-                [
-                    Query.equal('kioskId', kioskId),
-                    Query.greaterThan('$createdAt', threeMinsAgo),
-                    Query.orderDesc('$createdAt'),
-                    Query.limit(5)
-                ]
-            );
-
-            // Look for any active status
-            const inUse = activeSessions.documents.some(doc =>
-                ['CONNECTED', 'PENDING', 'QUEUED', 'PRINTING'].includes(doc.status)
-            );
-
-            if (inUse) {
-                alert("This Kiosk is currently in use. Please wait until the current user finishes.");
-                setDebugInfo(`Handshake Blocked: Kiosk ${kioskId} is locked.`);
-                return; // Stop progression
-            }
-
-            // Kiosk is free, proceed with lock
+            // Proceed with lock
             setConnectedKioskId(kioskId);
             setPrintFlow(PrintFlow.DIRECT);
 
