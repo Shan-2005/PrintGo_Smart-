@@ -36,6 +36,12 @@ const UserPage: React.FC = () => {
     const [searchParams] = useSearchParams();
 
     useEffect(() => {
+        const projectId = import.meta.env.VITE_APPWRITE_PROJECT_ID;
+        const endpoint = import.meta.env.VITE_APPWRITE_ENDPOINT;
+        if (projectId && endpoint) {
+            client.setEndpoint(endpoint).setProject(projectId);
+        }
+
         const savedHistory = localStorage.getItem('print_history');
         if (savedHistory) {
             try {
@@ -203,9 +209,10 @@ const UserPage: React.FC = () => {
                 setCurrentStep(AppStep.CODE_READY);
             }
 
-        } catch (error) {
+        } catch (error: any) {
             console.error("Appwrite Submission Failed:", error);
-            alert("Failed to submit print job. Check console.");
+            setDebugInfo(`Submit Error: ${error?.message || JSON.stringify(error)}`);
+            alert(`Appwrite Error: ${error?.message || 'Unknown error submitting job'}`);
         }
     };
 
