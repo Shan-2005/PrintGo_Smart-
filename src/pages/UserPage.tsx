@@ -4,7 +4,7 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { Smartphone, Monitor, Wifi, WifiOff } from 'lucide-react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import client, { databases, storage } from '@/src/lib/appwrite';
-import { ID } from 'appwrite';
+import { ID, Permission, Role } from 'appwrite';
 import { AppStep, PrintSettings, PrintColorMode, PaperSize, FileData, PrintJob, PrintTransaction, PrintFlow } from '@/types';
 import ConnectScreen from '@/screens/ConnectScreen';
 import UploadScreen from '@/screens/UploadScreen';
@@ -76,7 +76,13 @@ const UserPage: React.FC = () => {
                 releaseCode: '00000',
                 amount: '0',
                 timestamp: Date.now()
-            });
+            }, [
+                Permission.read(Role.any()),
+                Permission.update(Role.any()),
+                Permission.delete(Role.any())
+            ]);
+
+            setDebugInfo('Handshake Document Created OK!');
 
             // Only advance if Appwrite succeeded
             localStorage.setItem(`kiosk_status_${kioskId}`, JSON.stringify({
@@ -177,7 +183,11 @@ const UserPage: React.FC = () => {
             if (paymentId) {
                 (payload as any).paymentId = paymentId;
             }
-            await databases.createDocument(dbId, collId, ID.unique(), payload);
+            await databases.createDocument(dbId, collId, ID.unique(), payload, [
+                Permission.read(Role.any()),
+                Permission.update(Role.any()),
+                Permission.delete(Role.any())
+            ]);
 
             if (printFlow === PrintFlow.DIRECT && connectedKioskId) {
                 // For Direct flow, we still rely on the subscription on the other end
