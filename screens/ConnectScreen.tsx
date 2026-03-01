@@ -1,7 +1,7 @@
 
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { QrCode, Smartphone, ArrowRight, ShieldCheck, Printer, Cloud, X } from 'lucide-react';
+import { QrCode, Smartphone, ArrowRight, ShieldCheck, Printer, Cloud, X, CheckCircle2 } from 'lucide-react';
 import { Scanner } from '@yudiel/react-qr-scanner';
 
 interface ConnectScreenProps {
@@ -11,6 +11,7 @@ interface ConnectScreenProps {
 
 const ConnectScreen: React.FC<ConnectScreenProps> = ({ onConnect, onSkip }) => {
   const [isScanning, setIsScanning] = useState(false);
+  const [isSuccess, setIsSuccess] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const handleScan = (result: string) => {
@@ -23,16 +24,22 @@ const ConnectScreen: React.FC<ConnectScreenProps> = ({ onConnect, onSkip }) => {
 
         if (kioskId) {
           console.log("Found valid Kiosk ID in URL, connecting to:", kioskId);
-          onConnect(kioskId);
           setIsScanning(false);
+          setIsSuccess(true);
+          setTimeout(() => {
+            onConnect(kioskId);
+          }, 1500);
         } else {
           setError("Invalid QR Code (No Kiosk ID found)");
         }
       } catch (e) {
         // Fallback: Maybe the QR is JUST the ID?
         if (result.length < 10) {
-          onConnect(result);
           setIsScanning(false);
+          setIsSuccess(true);
+          setTimeout(() => {
+            onConnect(result);
+          }, 1500);
         } else {
           setError("Invalid QR Code Format");
         }
@@ -86,6 +93,40 @@ const ConnectScreen: React.FC<ConnectScreenProps> = ({ onConnect, onSkip }) => {
                 <p className="text-sm opacity-80 mt-1">Point your camera at the kiosk screen</p>
                 {error && <p className="text-red-400 mt-2 font-medium">{error}</p>}
               </div>
+            </div>
+          </motion.div>
+        ) : isSuccess ? (
+          <motion.div
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="fixed inset-0 z-50 bg-[#005fb0]"
+          >
+            <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-20 mix-blend-overlay"></div>
+            <div className="flex flex-col items-center justify-center h-full text-white">
+              <motion.div
+                initial={{ scale: 0, rotate: -180 }}
+                animate={{ scale: 1, rotate: 0 }}
+                transition={{ type: "spring", stiffness: 200, damping: 20 }}
+                className="w-32 h-32 bg-white rounded-full flex items-center justify-center mb-8 shadow-2xl"
+              >
+                <CheckCircle2 size={64} className="text-[#005fb0]" />
+              </motion.div>
+              <motion.h2
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.3 }}
+                className="text-4xl font-google-sans font-bold mb-2 shadow-sm"
+              >
+                Connected!
+              </motion.h2>
+              <motion.p
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ delay: 0.5 }}
+                className="text-white/80 font-medium"
+              >
+                Kiosk Linked Successfully
+              </motion.p>
             </div>
           </motion.div>
         ) : (
