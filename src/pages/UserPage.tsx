@@ -169,7 +169,9 @@ const UserPage: React.FC = () => {
             flow: printFlow
         });
 
-        setCurrentStep(AppStep.PAYMENT);
+        // TEST BYPASS: Skip the Payment screen entirely and auto-submit
+        // setCurrentStep(AppStep.PAYMENT);
+        setTimeout(() => handlePaymentSuccess(`dev_skip_${Date.now()}`), 500);
     };
 
     const handlePaymentSuccess = async (paymentId?: string) => {
