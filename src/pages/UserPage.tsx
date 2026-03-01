@@ -190,9 +190,8 @@ const UserPage: React.FC = () => {
             };
 
             // Create Document in Appwrite
-            if (paymentId) {
-                (payload as any).paymentId = paymentId;
-            }
+            // (paymentId removed to prevent schema validation failure)
+
             await databases.createDocument(dbId, collId, ID.unique(), payload, [
                 Permission.read(Role.any()),
                 Permission.update(Role.any()),
