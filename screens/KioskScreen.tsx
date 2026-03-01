@@ -52,9 +52,9 @@ const KioskScreen: React.FC = () => {
                 setConnectedUser('User'); // Could pass name in handshake later
                 setKioskStatus('CONNECTED');
 
-              } else if (job.status === 'PENDING') {
+              } else if (job.status === 'PENDING' || job.status === 'QUEUED') {
                 console.log("Job Matches Kiosk ID! Starting Print...");
-                setDebugInfo(`RT Matched! Print PENDING`);
+                setDebugInfo(`RT Matched! Print ${job.status}`);
                 // Convert Appwrite doc to PrintJob (parsing JSON strings back)
                 const newJob: PrintJob = {
                   id: job.$id,
@@ -122,8 +122,8 @@ const KioskScreen: React.FC = () => {
               setDebugInfo(`Poll Matched! Handshake OK`);
               setConnectedUser('User');
               setKioskStatus('CONNECTED');
-            } else if (doc.status === 'PENDING') {
-              setDebugInfo(`Poll Matched! Print Job Started`);
+            } else if (doc.status === 'PENDING' || doc.status === 'QUEUED') {
+              setDebugInfo(`Poll Matched! Print Job Started (${doc.status})`);
               const newJob: PrintJob = {
                 id: doc.$id,
                 file: JSON.parse(doc.fileData || '{}'),
