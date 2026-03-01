@@ -32,7 +32,6 @@ const KioskScreen: React.FC = () => {
   const [connectedUser, setConnectedUser] = useState<string | null>(null);
   const [progress, setProgress] = useState(0);
   const [inputCode, setInputCode] = useState('');
-  const [debugLog, setDebugLog] = useState<string[]>(['[System] Initializing...']);
 
   // --- Refs for Synchronization ---
   const lastProcessedDocId = useRef<string | null>(null);
@@ -43,7 +42,6 @@ const KioskScreen: React.FC = () => {
   // --- Utility: Logging ---
   const addLog = useCallback((msg: string) => {
     console.log(`[Kiosk] ${msg}`);
-    setDebugLog(prev => [`[${new Date().toLocaleTimeString()}] ${msg}`, ...prev].slice(0, 5));
   }, []);
 
   // --- Core Handlers ---
@@ -173,7 +171,7 @@ const KioskScreen: React.FC = () => {
 
     // Auto-reset after completion
     if (status === 'COMPLETE') {
-      const timer = setTimeout(resetKiosk, 8000);
+      const timer = setTimeout(resetKiosk, 3000);
       return () => clearTimeout(timer);
     }
   }, [status, resetKiosk, addLog]);
@@ -507,21 +505,7 @@ const KioskScreen: React.FC = () => {
 
       {/* --- Operator Controls (Hidden/Subtle) --- */}
       <footer className="fixed bottom-0 left-0 right-0 p-8 pointer-events-none flex justify-end items-end gap-4">
-        <div className="pointer-events-auto flex gap-4">
-          <button
-            onClick={handleForceSync}
-            title="Force Sync"
-            className="p-5 bg-white/5 hover:bg-white/10 rounded-[24px] border border-white/10 text-white/20 transition-all active:rotate-180 hover:text-white/60"
-          >
-            <RefreshCw size={24} />
-          </button>
-          <button
-            onClick={resetKiosk}
-            className="px-8 py-5 bg-red-500/5 hover:bg-red-500/10 rounded-[24px] border border-red-500/10 text-red-500/20 text-xs font-bold uppercase tracking-[0.2em] transition-all hover:text-red-500/60"
-          >
-            Terminal Reset
-          </button>
-        </div>
+        {/* Controls removed for production */}
       </footer>
 
       <style>{`

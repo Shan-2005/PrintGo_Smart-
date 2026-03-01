@@ -24,7 +24,6 @@ const UserPage: React.FC = () => {
     const [releaseCode, setReleaseCode] = useState<string>('');
     const [currentJob, setCurrentJob] = useState<PrintJob | null>(null);
     const [history, setHistory] = useState<PrintTransaction[]>([]);
-    const [debugInfo, setDebugInfo] = useState<string>('Booting UserApp...');
 
     const [settings, setSettings] = useState<PrintSettings>({
         colorMode: PrintColorMode.BW,
@@ -73,7 +72,6 @@ const UserPage: React.FC = () => {
             const endpoint = import.meta.env.VITE_APPWRITE_ENDPOINT;
             client.setEndpoint(endpoint).setProject(projectId);
 
-            setDebugInfo(`Appwrite Connect Attempt: Project:${projectId}`);
 
             // Proceed with lock
             setConnectedKioskId(kioskId);
@@ -93,7 +91,6 @@ const UserPage: React.FC = () => {
                 Permission.delete(Role.any())
             ]);
 
-            setDebugInfo('Handshake Document Created OK!');
 
             // Only advance if Appwrite succeeded
             localStorage.setItem(`kiosk_status_${kioskId}`, JSON.stringify({
@@ -106,7 +103,6 @@ const UserPage: React.FC = () => {
 
         } catch (e: any) {
             console.error("Handshake failed", e);
-            setDebugInfo(`Handshake Fail: ${e?.message || JSON.stringify(e)}`);
             // Stop progression
             return;
         }
@@ -214,7 +210,6 @@ const UserPage: React.FC = () => {
 
         } catch (error: any) {
             console.error("Appwrite Submission Failed:", error);
-            setDebugInfo(`Submit Error: ${error?.message || JSON.stringify(error)}`);
             alert(`Appwrite Error: ${error?.message || 'Unknown error submitting job'}`);
         }
     };
@@ -302,11 +297,6 @@ const UserPage: React.FC = () => {
                         </motion.div>
                     </AnimatePresence>
                 </main>
-
-                {/* VERCEL PRODUCTION DEBUG OVERLAY */}
-                <div className="fixed bottom-0 left-0 p-4 bg-black/80 text-red-400 font-mono text-xs z-50 max-w-lg break-words pointer-events-none">
-                    Debug: {debugInfo}
-                </div>
 
             </div>
         </div>
