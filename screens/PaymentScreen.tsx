@@ -84,23 +84,7 @@ const PaymentScreen: React.FC<PaymentScreenProps> = ({ settings, amount, onPayme
         prefill: {
           name: 'PrintGo Guest',
           email: 'guest@printgo.in',
-          contact: '9999999999',
-          method: 'upi' // Priority prefill
-        },
-        method: 'upi', // Force UPI method
-        config: {
-          display: {
-            blocks: {
-              upi: {
-                name: "Pay via UPI / Apps",
-                instruments: [{ method: "upi" }]
-              }
-            },
-            sequence: ["block.upi"],
-            preferences: {
-              show_default_blocks: false // Only show our UPI block
-            }
-          }
+          contact: '9999999999'
         },
         theme: {
           color: '#005fb0',
@@ -117,7 +101,7 @@ const PaymentScreen: React.FC<PaymentScreenProps> = ({ settings, amount, onPayme
         }
       };
 
-      console.log('🚀 Opening Razorpay with forced UPI method...');
+      console.log('🚀 Opening Razorpay checkout...');
       const rzp = new window.Razorpay(options);
       rzp.open();
       setPaymentState('AWAITING_PAYMENT');
