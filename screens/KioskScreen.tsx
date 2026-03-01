@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Printer, CornerDownLeft, FileText, CheckCircle2, AlertTriangle, Droplet, QrCode, Smartphone, Users, Keyboard, Power, Wifi } from 'lucide-react';
 import client, { databases } from '@/src/lib/appwrite';
@@ -15,6 +15,8 @@ const KioskScreen: React.FC = () => {
   const [connectedUser, setConnectedUser] = useState<string | null>(null);
   const [progress, setProgress] = useState(0);
   const [debugInfo, setDebugInfo] = useState<string>('Booting Kiosk...');
+  const lastSeenDocId = useRef<string | null>(null);
+  const isBooting = useRef<boolean>(true);
 
   // Real-time synchronization with Appwrite
   useEffect(() => {
@@ -83,43 +85,107 @@ const KioskScreen: React.FC = () => {
       setDebugInfo(prev => prev + ` | Sub Error: ${err?.message || JSON.stringify(err)}`);
     }
 
-    // Fallback: Check Appwrite periodically in case Realtime socket fails or gets blocked by the network
+    // Bulletproof Polling: Track by Document ID instead of unreliable clocks
     const fallbackInterval = setInterval(async () => {
-      if (kioskStatus === 'IDLE') {
-        try {
-          const response = await databases.listDocuments(
-            dbId,
-            collId,
-            [
-              Query.equal('kioskId', kioskId),
-              Query.equal('status', 'CONNECTED'),
-              Query.orderDesc('$createdAt'),
-              Query.limit(1)
-            ]
-          );
+      try {
+        const response = await databases.listDocuments(
+          dbId,
+          collId,
+          [
+            Query.equal('kioskId', kioskId),
+            Query.orderDesc('$createdAt'),
+            Query.limit(1)
+          ]
+        );
 
-          if (response.documents.length > 0) {
-            const doc = response.documents[0];
-            // Only accept recent connections (within the last 2 minutes)
-            if (Date.now() - doc.timestamp < 2 * 60 * 1000) {
-              console.log("Fallback: Handshake found via REST polling!");
+        if (response.documents.length > 0) {
+          const doc = response.documents[0];
+
+          // Seed the initial document on first boot so we ignore historical data
+          if (isBooting.current) {
+            lastSeenDocId.current = doc.$id;
+            isBooting.current = false;
+            setDebugInfo(prev => prev + ` | Baseline set: ${doc.$id}`);
+            return;
+          }
+
+          // Exactly ONE new document surfaced
+          if (doc.$id !== lastSeenDocId.current) {
+            console.log("New Document detected via polling!", doc);
+            lastSeenDocId.current = doc.$id;
+
+            if (doc.status === 'CONNECTED' && kioskStatus === 'IDLE') {
+              setDebugInfo(`Poll Matched! Handshake OK`);
               setConnectedUser('User');
               setKioskStatus('CONNECTED');
+            } else if (doc.status === 'PENDING') {
+              setDebugInfo(`Poll Matched! Print Job Started`);
+              const newJob: PrintJob = {
+                id: doc.$id,
+                file: JSON.parse(doc.fileData || '{}'),
+                settings: JSON.parse(doc.settings || '{}'),
+                timestamp: doc.timestamp,
+                amount: doc.amount,
+                status: 'PENDING',
+                releaseCode: doc.releaseCode,
+                kioskId: String(doc.kioskId),
+                flow: 'DIRECT' as any
+              };
+              setActiveJob(newJob);
+              setKioskStatus('PRINTING');
             }
           }
-        } catch (e: any) {
-          // Ignore polling errors to not flood console
-          if (!debugInfo.includes('PollErr')) {
-            setDebugInfo(prev => prev + ` | PollErr: ${e?.message || 'Unknown'}`);
-          }
+        } else {
+          isBooting.current = false; // No docs exist, ready for first one
+        }
+      } catch (e: any) {
+        if (!debugInfo.includes('PollErr')) {
+          setDebugInfo(prev => prev + ` | PollErr: ${e?.message || 'Unknown'}`);
         }
       }
-    }, 3000);
+    }, 2500);
 
     return () => {
       clearInterval(fallbackInterval);
     };
   }, [kioskStatus]);
+
+  const forceCheckApi = async () => {
+    try {
+      setDebugInfo('Forcing API Fetch...');
+      const dbId = import.meta.env.VITE_APPWRITE_DATABASE_ID;
+      const collId = import.meta.env.VITE_APPWRITE_COLLECTION_ID;
+      const projectId = import.meta.env.VITE_APPWRITE_PROJECT_ID;
+      const endpoint = import.meta.env.VITE_APPWRITE_ENDPOINT;
+
+      const url = `${endpoint}/databases/${dbId}/collections/${collId}/documents?queries[]=equal("kioskId", ["${kioskId}"])&queries[]=orderDesc("$createdAt")&queries[]=limit(5)`;
+
+      const res = await fetch(url, {
+        headers: {
+          'X-Appwrite-Project': projectId
+        }
+      });
+
+      const data = await res.json();
+      console.log("FORCE FETCH RESULTS:", data);
+
+      if (data.documents && data.documents.length > 0) {
+        setDebugInfo(`Force Fetch OK! Found ${data.documents.length}. Newest: [${data.documents[0].status}] at ${data.documents[0].$updatedAt}`);
+
+        // Brute force state update if it finds a handshake
+        const doc = data.documents[0];
+        if (doc.status === 'CONNECTED' && kioskStatus === 'IDLE') {
+          setConnectedUser('User');
+          setKioskStatus('CONNECTED');
+        }
+      } else {
+        setDebugInfo(`Force Fetch OK! But 0 documents found for Kiosk ${kioskId}.`);
+      }
+    } catch (err: any) {
+      console.error(err);
+      setDebugInfo(`Force Fetch Error: ${err.message}`);
+    }
+  };
 
   const handleKeyPress = (num: string) => {
     if (inputCode.length < 5) setInputCode(prev => prev + num);
@@ -285,6 +351,9 @@ const KioskScreen: React.FC = () => {
                   Scan with your Phone
                 </div>
               </div>
+              <button onClick={forceCheckApi} className="mt-4 px-8 py-4 bg-red-600 text-white font-bold uppercase tracking-widest text-xs rounded-xl shadow-lg hover:bg-red-500 w-full">
+                Force API Check
+              </button>
             </div>
           </motion.div>
         )}
