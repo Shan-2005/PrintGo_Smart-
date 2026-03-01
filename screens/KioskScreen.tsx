@@ -262,253 +262,255 @@ const KioskScreen: React.FC = () => {
   );
 
   return (
-    <div className="flex-1 flex flex-col gap-6 max-w-7xl mx-auto w-full min-h-screen relative py-4">
-      {renderHeader()}
+    <div className="min-h-screen bg-[#000d1a] flex items-center justify-center p-4 lg:p-12 overflow-hidden">
+      {/* 16:9 Aspect Ratio Container */}
+      <div className="relative w-full max-w-[1920px] aspect-video bg-[#000d1a] rounded-[40px] border border-white/5 shadow-[0_0_100px_rgba(0,0,0,0.5)] flex flex-col overflow-hidden">
+        {renderHeader()}
 
-      <main className="flex-1 flex flex-col items-center justify-center -mt-10">
-        <AnimatePresence mode="wait">
-          {/* --- IDLE STATE --- */}
-          {status === 'IDLE' && (
-            <motion.div
-              key="idle"
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 1.05 }}
-              className="w-full grid grid-cols-1 lg:grid-cols-2 gap-16 items-center px-8"
-            >
-              <div className="space-y-12">
-                <div className="space-y-6">
-                  <motion.div
-                    initial={{ x: -20, opacity: 0 }}
-                    animate={{ x: 0, opacity: 1 }}
-                    className="inline-flex items-center gap-3 px-4 py-1.5 bg-blue-500/10 text-blue-300 rounded-full text-[11px] font-black uppercase tracking-[0.3em] border border-blue-500/20"
-                  >
-                    Premium Printing Terminal
-                  </motion.div>
-                  <h2 className="text-6xl md:text-8xl lg:text-9xl font-google-sans font-bold text-white tracking-tighter leading-[0.85]">
-                    Print <br /><span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-300 to-indigo-200">Better.</span>
-                  </h2>
-                  <p className="text-xl md:text-2xl text-white/40 leading-relaxed font-medium max-w-md">
-                    Scan the secure code to link your device or use a digital release code.
-                  </p>
-                </div>
-
-                <div className="flex flex-col gap-4 max-w-md">
-                  <button
-                    onClick={() => setStatus('MANUAL_ENTRY')}
-                    className="group relative flex items-center gap-8 p-8 bg-white/5 border border-white/10 rounded-[40px] text-white hover:bg-white/10 transition-all active:scale-[0.98]"
-                  >
-                    <div className="w-16 h-16 bg-blue-500/10 rounded-3xl flex items-center justify-center text-blue-300 group-hover:scale-110 transition-transform">
-                      <Keyboard size={32} />
-                    </div>
-                    <div className="text-left">
-                      <div className="text-2xl font-google-sans font-bold">Release Code</div>
-                      <div className="text-sm text-white/30 font-medium">Direct 5-digit entry</div>
-                    </div>
-                  </button>
-                </div>
-              </div>
-
-              <div className="relative group">
-                <div className="absolute -inset-4 bg-gradient-to-tr from-blue-500/20 to-indigo-500/20 rounded-[80px] blur-3xl opacity-50 group-hover:opacity-100 transition-opacity" />
-                <div className="relative bg-white p-12 lg:p-16 rounded-[72px] flex flex-col items-center gap-12 shadow-[0_0_80px_rgba(255,255,255,0.05)] overflow-hidden">
-                  <div className="p-8 bg-blue-50 rounded-[48px] w-full aspect-square flex items-center justify-center border-4 border-white/50 shadow-inner">
-                    <QRCode
-                      value={`${window.location.protocol}//${window.location.host}/app?connect=${KIOSK_ID}`}
-                      size={280}
-                      level="H"
-                      marginSize={0}
-                      className="w-full h-auto"
-                    />
-                  </div>
-                  <div className="text-center space-y-4">
-                    <div className="text-3xl font-google-sans font-bold text-[#001c38]">Terminal {KIOSK_ID}</div>
-                    <div className="px-10 py-4 bg-blue-600 text-white rounded-full text-xs font-black uppercase tracking-[0.25em] shadow-2xl shadow-blue-500/40 active:scale-95 transition-all">
-                      Scan with Phone
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </motion.div>
-          )}
-
-          {/* --- CONNECTED STATE --- */}
-          {status === 'CONNECTED' && (
-            <motion.div
-              key="connected"
-              initial={{ opacity: 0, scale: 1.1 }}
-              animate={{ opacity: 1, scale: 1 }}
-              className="flex flex-col items-center gap-16 text-center"
-            >
-              <div className="relative">
-                <motion.div
-                  animate={{ scale: [1, 1.05, 1], filter: ['blur(0px)', 'blur(1px)', 'blur(0px)'] }}
-                  transition={{ duration: 4, repeat: Infinity }}
-                  className="w-64 h-64 bg-blue-500/10 border border-blue-500/30 rounded-[80px] flex items-center justify-center text-blue-300 shadow-[0_0_60px_rgba(59,130,246,0.2)]"
-                >
-                  <Users size={120} strokeWidth={0.5} />
-                </motion.div>
-                <div className="absolute -bottom-4 -right-4 w-20 h-20 bg-green-500 rounded-full border-[10px] border-[#000d1a] flex items-center justify-center shadow-2xl">
-                  <CheckCircle2 size={40} className="text-white" />
-                </div>
-              </div>
-
-              <div className="space-y-6">
-                <h2 className="text-8xl font-google-sans font-bold text-white tracking-tighter">
-                  Welcome, <br /><span className="text-blue-300">{connectedUser}!</span>
-                </h2>
-                <p className="text-2xl text-white/30 font-medium">Session Active. Continue on your mobile device.</p>
-              </div>
-
-              <button
-                onClick={resetKiosk}
-                className="mt-8 px-12 py-5 bg-white/5 border border-white/10 rounded-full text-white/60 text-xs font-black uppercase tracking-widest hover:bg-red-500/10 hover:text-red-300 hover:border-red-500/20 transition-all"
+        <main className="flex-1 flex flex-col items-center justify-center -mt-6">
+          <AnimatePresence mode="wait">
+            {/* --- IDLE STATE --- */}
+            {status === 'IDLE' && (
+              <motion.div
+                key="idle"
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 1.05 }}
+                className="w-full grid grid-cols-1 lg:grid-cols-2 gap-24 items-center px-16"
               >
-                End Session
-              </button>
-            </motion.div>
-          )}
-
-          {/* --- PRINTING STATE --- */}
-          {status === 'PRINTING' && activeJob && (
-            <motion.div
-              key="printing"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              className="w-full max-w-4xl flex flex-col items-center gap-24 px-8"
-            >
-              <div className="relative">
-                <motion.div
-                  animate={{ y: [0, -20, 0], scale: [1, 1.02, 1] }}
-                  transition={{ duration: 1, repeat: Infinity, ease: "easeInOut" }}
-                  className="w-72 h-72 bg-blue-500/10 border border-blue-400/20 rounded-[80px] flex items-center justify-center text-blue-300 shadow-[0_0_80px_rgba(59,130,246,0.15)]"
-                >
-                  <Printer size={140} strokeWidth={0.5} />
-                </motion.div>
-                <motion.div
-                  initial={{ opacity: 0, y: 0 }}
-                  animate={{ opacity: [0, 1, 0], y: 240 }}
-                  transition={{ duration: 0.8, repeat: Infinity }}
-                  className="absolute top-[80%] left-1/2 -translate-x-1/2 w-40 h-56 bg-white/10 blur-[1px] rounded-2xl -z-10 shadow-2xl"
-                />
-              </div>
-
-              <div className="w-full space-y-12">
-                <div className="flex justify-between items-end border-b border-white/10 pb-8">
-                  <div className="space-y-3">
-                    <div className="text-[11px] font-black text-blue-400 uppercase tracking-[0.5em] opacity-80">Job In Progress: {activeJob.id}</div>
-                    <h4 className="text-6xl font-google-sans font-bold text-white">{activeJob.file.name}</h4>
-                  </div>
-                  <div className="text-8xl font-google-sans font-bold text-blue-300 tabular-nums">
-                    {progress}%
-                  </div>
-                </div>
-
-                <div className="space-y-8">
-                  <div className="h-4 bg-white/5 rounded-full overflow-hidden p-1 border border-white/10 shadow-inner luxury-progress">
+                <div className="space-y-12">
+                  <div className="space-y-6">
                     <motion.div
-                      className="h-full bg-gradient-to-r from-blue-600 via-indigo-400 to-blue-300 rounded-full shadow-[0_0_30px_rgba(59,130,246,0.5)]"
-                      initial={{ width: 0 }}
-                      animate={{ width: `${progress}%` }}
-                    />
-                  </div>
-                  <div className="flex justify-between items-center text-[11px] font-black text-white/30 uppercase tracking-[0.4em]">
-                    <div className="flex gap-4">
-                      <span className="flex items-center gap-2"><Loader2 size={12} className="animate-spin" /> Hardware Link Active</span>
-                      <span className="flex items-center gap-2 decoration-green-500/50 underline">{activeJob.settings.colorMode}</span>
-                    </div>
-                    <span>{activeJob.file.pages} Pages • Single Copy</span>
-                  </div>
-                </div>
-              </div>
-            </motion.div>
-          )}
-
-          {/* --- MANUAL ENTRY STATE --- */}
-          {status === 'MANUAL_ENTRY' && (
-            <motion.div
-              key="manual"
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="w-full max-w-xl flex flex-col gap-10"
-            >
-              <div className="bg-white/5 backdrop-blur-3xl p-16 rounded-[64px] border border-white/10 shadow-2xl">
-                <h3 className="text-center text-white/40 font-black uppercase tracking-[0.4em] text-xs mb-12">Enter Release Code</h3>
-                <div className="flex justify-center gap-5 mb-16">
-                  {[...Array(5)].map((_, i) => (
-                    <div key={i} className="w-20 h-28 bg-[#000d1a] border-2 border-white/10 rounded-3xl flex items-center justify-center text-6xl font-google-sans font-bold text-blue-300 shadow-inner">
-                      {inputCode[i] || ''}
-                    </div>
-                  ))}
-                </div>
-                <div className="grid grid-cols-3 gap-5">
-                  {[1, 2, 3, 4, 5, 6, 7, 8, 9].map(n => (
-                    <button
-                      key={n}
-                      onClick={() => inputCode.length < 5 && setInputCode(p => p + n)}
-                      className="h-24 bg-white/5 rounded-[32px] text-4xl font-bold text-white hover:bg-white/10 active:scale-90 transition-all border border-white/5"
+                      initial={{ x: -20, opacity: 0 }}
+                      animate={{ x: 0, opacity: 1 }}
+                      className="inline-flex items-center gap-3 px-4 py-1.5 bg-blue-500/10 text-blue-300 rounded-full text-[11px] font-black uppercase tracking-[0.3em] border border-blue-500/20"
                     >
-                      {n}
+                      Premium Printing Terminal
+                    </motion.div>
+                    <h2 className="text-6xl md:text-8xl lg:text-9xl font-google-sans font-bold text-white tracking-tighter leading-[0.85]">
+                      Print <br /><span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-300 to-indigo-200">Better.</span>
+                    </h2>
+                    <p className="text-xl md:text-2xl text-white/40 leading-relaxed font-medium max-w-md">
+                      Scan the secure code to link your device or use a digital release code.
+                    </p>
+                  </div>
+
+                  <div className="flex flex-col gap-4 max-w-md">
+                    <button
+                      onClick={() => setStatus('MANUAL_ENTRY')}
+                      className="group relative flex items-center gap-8 p-8 bg-white/5 border border-white/10 rounded-[40px] text-white hover:bg-white/10 transition-all active:scale-[0.98]"
+                    >
+                      <div className="w-16 h-16 bg-blue-500/10 rounded-3xl flex items-center justify-center text-blue-300 group-hover:scale-110 transition-transform">
+                        <Keyboard size={32} />
+                      </div>
+                      <div className="text-left">
+                        <div className="text-2xl font-google-sans font-bold">Release Code</div>
+                        <div className="text-sm text-white/30 font-medium">Direct 5-digit entry</div>
+                      </div>
                     </button>
-                  ))}
-                  <button onClick={resetKiosk} className="h-24 bg-red-500/10 rounded-[32px] text-red-500 flex items-center justify-center hover:bg-red-500/20 active:scale-90 transition-all border border-red-500/10"><XCircle size={32} /></button>
-                  <button onClick={() => inputCode.length < 5 && setInputCode(p => p + '0')} className="h-24 bg-white/5 rounded-[32px] text-4xl font-bold text-white hover:bg-white/10 border border-white/5">0</button>
-                  <button
-                    onClick={handleManualEntry}
-                    disabled={inputCode.length < 5}
-                    className="h-24 bg-blue-600 rounded-[32px] text-white flex items-center justify-center disabled:opacity-20 active:scale-90 shadow-xl shadow-blue-600/30 transition-all"
-                  >
-                    <CornerDownLeft size={36} />
-                  </button>
+                  </div>
                 </div>
-              </div>
-            </motion.div>
-          )}
 
-          {/* --- COMPLETE STATE --- */}
-          {status === 'COMPLETE' && (
-            <motion.div
-              key="complete"
-              initial={{ opacity: 0, scale: 0.9 }}
-              animate={{ opacity: 1, scale: 1 }}
-              className="flex flex-col items-center gap-16 text-center"
-            >
-              <div className="w-64 h-64 bg-green-500/10 rounded-[80px] flex items-center justify-center border-4 border-green-500/20 shadow-[0_0_60px_rgba(34,197,94,0.15)]">
-                <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ type: 'spring', damping: 10 }}>
-                  <CheckCircle2 size={160} strokeWidth={0.5} className="text-green-400" />
-                </motion.div>
-              </div>
-              <div className="space-y-6">
-                <h2 className="text-8xl font-google-sans font-bold text-white tracking-tighter">Collection Ready</h2>
-                <p className="text-3xl text-white/30 font-medium max-w-2xl">Please retrieve your documents from the exit tray. Have a great day!</p>
-              </div>
-              <button onClick={resetKiosk} className="mt-8 px-16 py-6 bg-white text-blue-900 rounded-[36px] font-bold text-2xl hover:scale-105 active:scale-95 transition-all shadow-2xl">
-                Done
-              </button>
-            </motion.div>
-          )}
+                <div className="relative group">
+                  <div className="absolute -inset-4 bg-gradient-to-tr from-blue-500/20 to-indigo-500/20 rounded-[80px] blur-3xl opacity-50 group-hover:opacity-100 transition-opacity" />
+                  <div className="relative bg-white p-12 lg:p-16 rounded-[72px] flex flex-col items-center gap-12 shadow-[0_0_80px_rgba(255,255,255,0.05)] overflow-hidden">
+                    <div className="p-8 bg-blue-50 rounded-[48px] w-full aspect-square flex items-center justify-center border-4 border-white/50 shadow-inner">
+                      <QRCode
+                        value={`${window.location.protocol}//${window.location.host}/app?connect=${KIOSK_ID}`}
+                        size={320}
+                        level="H"
+                        marginSize={0}
+                        className="w-full h-auto"
+                      />
+                    </div>
+                    <div className="text-center space-y-6">
+                      <div className="text-4xl font-google-sans font-bold text-[#001c38]">Terminal {KIOSK_ID}</div>
+                      <div className="px-12 py-5 bg-blue-600 text-white rounded-full text-sm font-black uppercase tracking-[0.25em] shadow-2xl shadow-blue-500/40 active:scale-95 transition-all">
+                        Scan with Phone
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </motion.div>
+            )}
 
-          {/* --- ERROR STATE --- */}
-          {status === 'ERROR' && (
-            <motion.div key="error" className="flex flex-col items-center gap-8">
-              <div className="w-32 h-32 bg-red-500/10 rounded-full flex items-center justify-center border-2 border-red-500/20">
-                <AlertTriangle size={64} className="text-red-400 animate-bounce" />
-              </div>
-              <div className="text-center space-y-3">
-                <h2 className="text-4xl font-bold text-white">Verification Failed</h2>
-                <p className="text-xl text-white/30">The code entered is invalid or expired.</p>
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
-      </main>
+            {/* --- CONNECTED STATE --- */}
+            {status === 'CONNECTED' && (
+              <motion.div
+                key="connected"
+                initial={{ opacity: 0, scale: 1.1 }}
+                animate={{ opacity: 1, scale: 1 }}
+                className="flex flex-col items-center gap-16 text-center"
+              >
+                <div className="relative">
+                  <motion.div
+                    animate={{ scale: [1, 1.05, 1], filter: ['blur(0px)', 'blur(1px)', 'blur(0px)'] }}
+                    transition={{ duration: 4, repeat: Infinity }}
+                    className="w-64 h-64 bg-blue-500/10 border border-blue-500/30 rounded-[80px] flex items-center justify-center text-blue-300 shadow-[0_0_60px_rgba(59,130,246,0.2)]"
+                  >
+                    <Users size={120} strokeWidth={0.5} />
+                  </motion.div>
+                  <div className="absolute -bottom-4 -right-4 w-20 h-20 bg-green-500 rounded-full border-[10px] border-[#000d1a] flex items-center justify-center shadow-2xl">
+                    <CheckCircle2 size={40} className="text-white" />
+                  </div>
+                </div>
 
-      {/* --- Operator Controls (Hidden/Subtle) --- */}
-      <footer className="fixed bottom-0 left-0 right-0 p-8 pointer-events-none flex justify-end items-end gap-4">
-        {/* Controls removed for production */}
-      </footer>
+                <div className="space-y-6">
+                  <h2 className="text-8xl font-google-sans font-bold text-white tracking-tighter">
+                    Welcome, <br /><span className="text-blue-300">{connectedUser}!</span>
+                  </h2>
+                  <p className="text-2xl text-white/30 font-medium">Session Active. Continue on your mobile device.</p>
+                </div>
 
-      <style>{`
+                <button
+                  onClick={resetKiosk}
+                  className="mt-8 px-12 py-5 bg-white/5 border border-white/10 rounded-full text-white/60 text-xs font-black uppercase tracking-widest hover:bg-red-500/10 hover:text-red-300 hover:border-red-500/20 transition-all"
+                >
+                  End Session
+                </button>
+              </motion.div>
+            )}
+
+            {/* --- PRINTING STATE --- */}
+            {status === 'PRINTING' && activeJob && (
+              <motion.div
+                key="printing"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                className="w-full max-w-4xl flex flex-col items-center gap-24 px-8"
+              >
+                <div className="relative">
+                  <motion.div
+                    animate={{ y: [0, -20, 0], scale: [1, 1.02, 1] }}
+                    transition={{ duration: 1, repeat: Infinity, ease: "easeInOut" }}
+                    className="w-72 h-72 bg-blue-500/10 border border-blue-400/20 rounded-[80px] flex items-center justify-center text-blue-300 shadow-[0_0_80px_rgba(59,130,246,0.15)]"
+                  >
+                    <Printer size={140} strokeWidth={0.5} />
+                  </motion.div>
+                  <motion.div
+                    initial={{ opacity: 0, y: 0 }}
+                    animate={{ opacity: [0, 1, 0], y: 240 }}
+                    transition={{ duration: 0.8, repeat: Infinity }}
+                    className="absolute top-[80%] left-1/2 -translate-x-1/2 w-40 h-56 bg-white/10 blur-[1px] rounded-2xl -z-10 shadow-2xl"
+                  />
+                </div>
+
+                <div className="w-full space-y-12">
+                  <div className="flex justify-between items-end border-b border-white/10 pb-8">
+                    <div className="space-y-3">
+                      <div className="text-[11px] font-black text-blue-400 uppercase tracking-[0.5em] opacity-80">Job In Progress: {activeJob.id}</div>
+                      <h4 className="text-6xl font-google-sans font-bold text-white">{activeJob.file.name}</h4>
+                    </div>
+                    <div className="text-8xl font-google-sans font-bold text-blue-300 tabular-nums">
+                      {progress}%
+                    </div>
+                  </div>
+
+                  <div className="space-y-8">
+                    <div className="h-4 bg-white/5 rounded-full overflow-hidden p-1 border border-white/10 shadow-inner luxury-progress">
+                      <motion.div
+                        className="h-full bg-gradient-to-r from-blue-600 via-indigo-400 to-blue-300 rounded-full shadow-[0_0_30px_rgba(59,130,246,0.5)]"
+                        initial={{ width: 0 }}
+                        animate={{ width: `${progress}%` }}
+                      />
+                    </div>
+                    <div className="flex justify-between items-center text-[11px] font-black text-white/30 uppercase tracking-[0.4em]">
+                      <div className="flex gap-4">
+                        <span className="flex items-center gap-2"><Loader2 size={12} className="animate-spin" /> Hardware Link Active</span>
+                        <span className="flex items-center gap-2 decoration-green-500/50 underline">{activeJob.settings.colorMode}</span>
+                      </div>
+                      <span>{activeJob.file.pages} Pages • Single Copy</span>
+                    </div>
+                  </div>
+                </div>
+              </motion.div>
+            )}
+
+            {/* --- MANUAL ENTRY STATE --- */}
+            {status === 'MANUAL_ENTRY' && (
+              <motion.div
+                key="manual"
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="w-full max-w-xl flex flex-col gap-10"
+              >
+                <div className="bg-white/5 backdrop-blur-3xl p-16 rounded-[64px] border border-white/10 shadow-2xl">
+                  <h3 className="text-center text-white/40 font-black uppercase tracking-[0.4em] text-xs mb-12">Enter Release Code</h3>
+                  <div className="flex justify-center gap-5 mb-16">
+                    {[...Array(5)].map((_, i) => (
+                      <div key={i} className="w-20 h-28 bg-[#000d1a] border-2 border-white/10 rounded-3xl flex items-center justify-center text-6xl font-google-sans font-bold text-blue-300 shadow-inner">
+                        {inputCode[i] || ''}
+                      </div>
+                    ))}
+                  </div>
+                  <div className="grid grid-cols-3 gap-5">
+                    {[1, 2, 3, 4, 5, 6, 7, 8, 9].map(n => (
+                      <button
+                        key={n}
+                        onClick={() => inputCode.length < 5 && setInputCode(p => p + n)}
+                        className="h-24 bg-white/5 rounded-[32px] text-4xl font-bold text-white hover:bg-white/10 active:scale-90 transition-all border border-white/5"
+                      >
+                        {n}
+                      </button>
+                    ))}
+                    <button onClick={resetKiosk} className="h-24 bg-red-500/10 rounded-[32px] text-red-500 flex items-center justify-center hover:bg-red-500/20 active:scale-90 transition-all border border-red-500/10"><XCircle size={32} /></button>
+                    <button onClick={() => inputCode.length < 5 && setInputCode(p => p + '0')} className="h-24 bg-white/5 rounded-[32px] text-4xl font-bold text-white hover:bg-white/10 border border-white/5">0</button>
+                    <button
+                      onClick={handleManualEntry}
+                      disabled={inputCode.length < 5}
+                      className="h-24 bg-blue-600 rounded-[32px] text-white flex items-center justify-center disabled:opacity-20 active:scale-90 shadow-xl shadow-blue-600/30 transition-all"
+                    >
+                      <CornerDownLeft size={36} />
+                    </button>
+                  </div>
+                </div>
+              </motion.div>
+            )}
+
+            {/* --- COMPLETE STATE --- */}
+            {status === 'COMPLETE' && (
+              <motion.div
+                key="complete"
+                initial={{ opacity: 0, scale: 0.9 }}
+                animate={{ opacity: 1, scale: 1 }}
+                className="flex flex-col items-center gap-16 text-center"
+              >
+                <div className="w-64 h-64 bg-green-500/10 rounded-[80px] flex items-center justify-center border-4 border-green-500/20 shadow-[0_0_60px_rgba(34,197,94,0.15)]">
+                  <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ type: 'spring', damping: 10 }}>
+                    <CheckCircle2 size={160} strokeWidth={0.5} className="text-green-400" />
+                  </motion.div>
+                </div>
+                <div className="space-y-6">
+                  <h2 className="text-8xl font-google-sans font-bold text-white tracking-tighter">Collection Ready</h2>
+                  <p className="text-3xl text-white/30 font-medium max-w-2xl">Please retrieve your documents from the exit tray. Have a great day!</p>
+                </div>
+                <button onClick={resetKiosk} className="mt-8 px-16 py-6 bg-white text-blue-900 rounded-[36px] font-bold text-2xl hover:scale-105 active:scale-95 transition-all shadow-2xl">
+                  Done
+                </button>
+              </motion.div>
+            )}
+
+            {/* --- ERROR STATE --- */}
+            {status === 'ERROR' && (
+              <motion.div key="error" className="flex flex-col items-center gap-8">
+                <div className="w-32 h-32 bg-red-500/10 rounded-full flex items-center justify-center border-2 border-red-500/20">
+                  <AlertTriangle size={64} className="text-red-400 animate-bounce" />
+                </div>
+                <div className="text-center space-y-3">
+                  <h2 className="text-4xl font-bold text-white">Verification Failed</h2>
+                  <p className="text-xl text-white/30">The code entered is invalid or expired.</p>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </main>
+
+        {/* --- Operator Controls (Hidden/Subtle) --- */}
+        <footer className="fixed bottom-0 left-0 right-0 p-8 pointer-events-none flex justify-end items-end gap-4">
+          {/* Controls removed for production */}
+        </footer>
+
+        <style>{`
         .luxury-progress::after {
           content: '';
           position: absolute;
@@ -525,6 +527,7 @@ const KioskScreen: React.FC = () => {
           overflow: hidden;
         }
       `}</style>
+      </div>
     </div>
   );
 };

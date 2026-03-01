@@ -27,7 +27,7 @@ const OptionsScreen: React.FC<OptionsScreenProps> = ({ file, initialSettings, on
   return (
     <div className="flex flex-col gap-8 pb-12">
       <div className="flex items-center gap-4">
-        <button 
+        <button
           onClick={onBack}
           className="w-12 h-12 flex items-center justify-center bg-white rounded-full border border-[#e1e2ec] hover:bg-[#f1f3f9] transition-all"
         >
@@ -63,18 +63,16 @@ const OptionsScreen: React.FC<OptionsScreenProps> = ({ file, initialSettings, on
               </div>
               <div className="grid grid-cols-2 p-1.5 bg-[#f1f3f9] rounded-2xl">
                 <button
-                  onClick={() => setSettings({...settings, colorMode: PrintColorMode.BW})}
-                  className={`py-3 rounded-[14px] text-xs font-bold transition-all ${
-                    settings.colorMode === PrintColorMode.BW ? 'bg-white text-[#005fb0] shadow-sm' : 'text-[#44474e]'
-                  }`}
+                  onClick={() => setSettings({ ...settings, colorMode: PrintColorMode.BW })}
+                  className={`py-3 rounded-[14px] text-xs font-bold transition-all ${settings.colorMode === PrintColorMode.BW ? 'bg-white text-[#005fb0] shadow-sm' : 'text-[#44474e]'
+                    }`}
                 >
                   B & W
                 </button>
                 <button
-                  onClick={() => setSettings({...settings, colorMode: PrintColorMode.COLOR})}
-                  className={`py-3 rounded-[14px] text-xs font-bold transition-all ${
-                    settings.colorMode === PrintColorMode.COLOR ? 'bg-white text-[#005fb0] shadow-sm' : 'text-[#44474e]'
-                  }`}
+                  onClick={() => setSettings({ ...settings, colorMode: PrintColorMode.COLOR })}
+                  className={`py-3 rounded-[14px] text-xs font-bold transition-all ${settings.colorMode === PrintColorMode.COLOR ? 'bg-white text-[#005fb0] shadow-sm' : 'text-[#44474e]'
+                    }`}
                 >
                   Color
                 </button>
@@ -88,7 +86,7 @@ const OptionsScreen: React.FC<OptionsScreenProps> = ({ file, initialSettings, on
               </div>
               <select
                 value={settings.paperSize}
-                onChange={(e) => setSettings({...settings, paperSize: e.target.value as PaperSize})}
+                onChange={(e) => setSettings({ ...settings, paperSize: e.target.value as PaperSize })}
                 className="w-full bg-[#f1f3f9] border-none rounded-2xl p-4 text-sm font-bold focus:ring-2 focus:ring-[#005fb0] outline-none"
               >
                 <option value={PaperSize.A4}>A4 Standard</option>
@@ -103,15 +101,15 @@ const OptionsScreen: React.FC<OptionsScreenProps> = ({ file, initialSettings, on
                 <span className="font-bold text-[#1a1c1e] text-sm">Copies</span>
               </div>
               <div className="flex items-center justify-between bg-[#f1f3f9] rounded-2xl p-1.5">
-                <button 
-                  onClick={() => setSettings({...settings, copies: Math.max(1, settings.copies - 1)})}
+                <button
+                  onClick={() => setSettings({ ...settings, copies: Math.max(1, settings.copies - 1) })}
                   className="w-12 h-12 flex items-center justify-center bg-white rounded-xl shadow-sm text-2xl font-bold text-[#005fb0]"
                 >
                   −
                 </button>
                 <span className="font-google-sans font-bold text-xl">{settings.copies}</span>
-                <button 
-                  onClick={() => setSettings({...settings, copies: settings.copies + 1})}
+                <button
+                  onClick={() => setSettings({ ...settings, copies: settings.copies + 1 })}
                   className="w-12 h-12 flex items-center justify-center bg-white rounded-xl shadow-sm text-2xl font-bold text-[#005fb0]"
                 >
                   +
@@ -128,26 +126,27 @@ const OptionsScreen: React.FC<OptionsScreenProps> = ({ file, initialSettings, on
                 type="text"
                 placeholder="All"
                 value={settings.pageRange}
-                onChange={(e) => setSettings({...settings, pageRange: e.target.value})}
+                onChange={(e) => setSettings({ ...settings, pageRange: e.target.value })}
                 className="w-full bg-[#f1f3f9] border-none rounded-2xl p-4 text-sm font-bold focus:ring-2 focus:ring-[#005fb0] outline-none"
               />
             </div>
           </div>
         </div>
 
-        <div className="lg:col-span-5">
-          <motion.div 
+        {/* Desktop Summary Card / Mobile Sticky Bar */}
+        <div className="lg:col-span-5 relative">
+          <motion.div
             layout
-            className="bg-[#001c38] p-10 rounded-[48px] sticky top-8 text-white shadow-2xl shadow-[#001c38]/20 flex flex-col gap-10 overflow-hidden relative"
+            className="hidden lg:flex bg-[#001c38] p-10 rounded-[48px] sticky top-8 text-white shadow-2xl shadow-[#001c38]/20 flex-col gap-10 overflow-hidden"
           >
             {/* Background Decoration */}
             <div className="absolute top-0 right-0 w-32 h-32 bg-white/5 blur-3xl rounded-full"></div>
-            
+
             <div className="flex items-center justify-between relative">
               <h3 className="text-2xl font-google-sans font-bold">Summary</h3>
               <Sparkles className="text-[#005fb0]" />
             </div>
-            
+
             <div className="space-y-5 relative">
               <div className="flex justify-between text-white/50 text-xs font-black uppercase tracking-widest">
                 <span>Color</span>
@@ -172,6 +171,21 @@ const OptionsScreen: React.FC<OptionsScreenProps> = ({ file, initialSettings, on
               Pay with Checkout
             </button>
           </motion.div>
+
+          {/* Mobile Sticky Bottom Bar */}
+          <div className="lg:hidden fixed bottom-0 left-0 right-0 p-4 bg-white/80 backdrop-blur-xl border-t border-[#e1e2ec] z-40 flex items-center justify-between gap-4">
+            <div className="flex flex-col">
+              <span className="text-[10px] font-black text-[#74777f] uppercase tracking-widest leading-none mb-1">Total Amount</span>
+              <span className="text-2xl font-google-sans font-bold text-[#1a1c1e]">₹{calculateTotal()}</span>
+            </div>
+            <button
+              onClick={() => onProceed(settings)}
+              className="flex-1 py-4 px-6 bg-[#005fb0] text-white rounded-2xl font-google-sans font-bold text-sm flex items-center justify-center gap-2 shadow-lg shadow-blue-100"
+            >
+              <CreditCard size={18} />
+              Pay Now
+            </button>
+          </div>
         </div>
       </div>
     </div>
