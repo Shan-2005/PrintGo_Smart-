@@ -14,13 +14,16 @@ const KioskScreen: React.FC = () => {
   const [activeJob, setActiveJob] = useState<PrintJob | null>(null);
   const [connectedUser, setConnectedUser] = useState<string | null>(null);
   const [progress, setProgress] = useState(0);
+  const [debugInfo, setDebugInfo] = useState<string>('Booting Kiosk...');
 
   // Real-time synchronization with Appwrite
   useEffect(() => {
     const dbId = import.meta.env.VITE_APPWRITE_DATABASE_ID;
     const collId = import.meta.env.VITE_APPWRITE_COLLECTION_ID;
+    const projectId = import.meta.env.VITE_APPWRITE_PROJECT_ID;
 
     console.log("Starting Realtime Subscription...", { dbId, collId });
+    setDebugInfo(`Init. Project: ${projectId || 'MISSING'}, DB: ${dbId || 'MISSING'}`);
 
     try {
       const unsubscribe = client.subscribe(
@@ -63,12 +66,14 @@ const KioskScreen: React.FC = () => {
         }
       );
       console.log("Subscribed successfully.");
+      setDebugInfo(prev => prev + ' | Subscribed OK');
 
       return () => {
         unsubscribe();
       };
-    } catch (err) {
+    } catch (err: any) {
       console.error("Subscription Error:", err);
+      setDebugInfo(prev => prev + ` | Sub Error: ${err?.message || JSON.stringify(err)}`);
     }
 
     // Fallback: Check Appwrite periodically in case Realtime socket fails or gets blocked by the network
@@ -95,8 +100,11 @@ const KioskScreen: React.FC = () => {
               setKioskStatus('CONNECTED');
             }
           }
-        } catch (e) {
+        } catch (e: any) {
           // Ignore polling errors to not flood console
+          if (!debugInfo.includes('PollErr')) {
+            setDebugInfo(prev => prev + ` | PollErr: ${e?.message || 'Unknown'}`);
+          }
         }
       }
     }, 3000);
@@ -396,6 +404,11 @@ const KioskScreen: React.FC = () => {
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* VERCEL PRODUCTION DEBUG OVERLAY */}
+      <div className="fixed bottom-0 left-0 p-4 bg-black/80 text-red-400 font-mono text-xs z-50 max-w-lg break-words pointer-events-none">
+        Debug: {debugInfo}
+      </div>
     </div>
   );
 };

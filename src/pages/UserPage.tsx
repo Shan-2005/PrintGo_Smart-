@@ -24,6 +24,7 @@ const UserPage: React.FC = () => {
     const [releaseCode, setReleaseCode] = useState<string>('');
     const [currentJob, setCurrentJob] = useState<PrintJob | null>(null);
     const [history, setHistory] = useState<PrintTransaction[]>([]);
+    const [debugInfo, setDebugInfo] = useState<string>('Booting UserApp...');
 
     const [settings, setSettings] = useState<PrintSettings>({
         colorMode: PrintColorMode.BW,
@@ -62,10 +63,10 @@ const UserPage: React.FC = () => {
         setConnectedKioskId(kioskId);
         setPrintFlow(PrintFlow.DIRECT);
 
-        // Send Handshake to Kiosk
         try {
             const dbId = import.meta.env.VITE_APPWRITE_DATABASE_ID;
             const collId = import.meta.env.VITE_APPWRITE_COLLECTION_ID;
+            setDebugInfo(`Appwrite Connect Attempt: Project:${import.meta.env.VITE_APPWRITE_PROJECT_ID}`);
 
             await databases.createDocument(dbId, collId, ID.unique(), {
                 kioskId: kioskId,
@@ -77,8 +78,9 @@ const UserPage: React.FC = () => {
                 timestamp: Date.now()
             });
 
-        } catch (e) {
+        } catch (e: any) {
             console.error("Handshake failed", e);
+            setDebugInfo(`Handshake Fail: ${e?.message || JSON.stringify(e)}`);
         }
 
         localStorage.setItem(`kiosk_status_${kioskId}`, JSON.stringify({
@@ -273,6 +275,11 @@ const UserPage: React.FC = () => {
                         </motion.div>
                     </AnimatePresence>
                 </main>
+
+                {/* VERCEL PRODUCTION DEBUG OVERLAY */}
+                <div className="fixed bottom-0 left-0 p-4 bg-black/80 text-red-400 font-mono text-xs z-50 max-w-lg break-words pointer-events-none">
+                    Debug: {debugInfo}
+                </div>
 
             </div>
         </div>
