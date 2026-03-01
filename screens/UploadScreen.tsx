@@ -55,91 +55,94 @@ const UploadScreen: React.FC<UploadScreenProps> = ({ onFileSelect }) => {
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
         <div className="lg:col-span-8">
-          className={`relative min-h-[300px] lg:min-h-[420px] rounded-[40px] lg:rounded-[48px] border-2 border-dashed transition-all duration-500 flex flex-col items-center justify-center p-8 lg:p-12 text-center cursor-pointer group ${isDragging
-            ? 'border-[#005fb0] bg-[#d3e4ff]/30'
-            : 'border-[#e1e2ec] bg-white hover:border-[#005fb0] hover:shadow-2xl hover:shadow-blue-100/40'
-            }`}
-          onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
-          onDragLeave={() => setIsDragging(false)}
-          onDrop={(e) => { e.preventDefault(); setIsDragging(false); if (e.dataTransfer.files[0]) validateAndSelect(e.dataTransfer.files[0]); }}
-          onClick={() => fileInputRef.current?.click()}
+          <motion.div
+            whileHover={{ scale: 1.005 }}
+            whileTap={{ scale: 0.995 }}
+            className={`relative min-h-[300px] lg:min-h-[420px] rounded-[40px] lg:rounded-[48px] border-2 border-dashed transition-all duration-500 flex flex-col items-center justify-center p-8 lg:p-12 text-center cursor-pointer group ${isDragging
+              ? 'border-[#005fb0] bg-[#d3e4ff]/30'
+              : 'border-[#e1e2ec] bg-white hover:border-[#005fb0] hover:shadow-2xl hover:shadow-blue-100/40'
+              }`}
+            onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
+            onDragLeave={() => setIsDragging(false)}
+            onDrop={(e) => { e.preventDefault(); setIsDragging(false); if (e.dataTransfer.files[0]) validateAndSelect(e.dataTransfer.files[0]); }}
+            onClick={() => fileInputRef.current?.click()}
           >
-          <input
-            type="file"
-            ref={fileInputRef}
-            onChange={(e) => e.target.files && validateAndSelect(e.target.files[0])}
-            className="hidden"
-            accept=".pdf,.docx,.jpg,.png"
-          />
+            <input
+              type="file"
+              ref={fileInputRef}
+              onChange={(e) => e.target.files && validateAndSelect(e.target.files[0])}
+              className="hidden"
+              accept=".pdf,.docx,.jpg,.png"
+            />
 
-          <div className="relative mb-8">
-            <motion.div
-              className="w-20 h-20 lg:w-28 lg:h-28 bg-[#f1f3f9] group-hover:bg-[#d3e4ff] rounded-[32px] lg:rounded-[38px] flex items-center justify-center text-[#005fb0] transition-colors duration-500"
-            >
-              <FilePlus size={36} className="lg:size-[48px]" strokeWidth={1.5} />
-            </motion.div>
-            <div className="absolute -bottom-2 -right-2 w-10 h-10 bg-[#005fb0] rounded-full flex items-center justify-center text-white shadow-lg">
-              <Upload size={18} strokeWidth={2.5} />
+            <div className="relative mb-8">
+              <motion.div
+                className="w-20 h-20 lg:w-28 lg:h-28 bg-[#f1f3f9] group-hover:bg-[#d3e4ff] rounded-[32px] lg:rounded-[38px] flex items-center justify-center text-[#005fb0] transition-colors duration-500"
+              >
+                <FilePlus size={36} className="lg:size-[48px]" strokeWidth={1.5} />
+              </motion.div>
+              <div className="absolute -bottom-2 -right-2 w-10 h-10 bg-[#005fb0] rounded-full flex items-center justify-center text-white shadow-lg">
+                <Upload size={18} strokeWidth={2.5} />
+              </div>
             </div>
-          </div>
 
-          <div className="space-y-3">
-            <h3 className="text-2xl font-google-sans font-bold text-[#1a1c1e]">Drop your file here</h3>
-            <p className="text-[#74777f] font-medium">Or click to browse from device</p>
-          </div>
-
-          <div className="mt-10 flex gap-2">
-            {['PDF', 'DOCX', 'IMAGES'].map(t => (
-              <span key={t} className="px-4 py-2 bg-[#f1f3f9] text-[#44474e] rounded-full text-[10px] font-black tracking-widest uppercase">
-                {t}
-              </span>
-            ))}
-          </div>
-
-          {error && (
-            <motion.div
-              initial={{ opacity: 0, scale: 0.9 }}
-              animate={{ opacity: 1, scale: 1 }}
-              className="absolute top-6 bg-[#ba1a1a] text-white px-6 py-3 rounded-full flex items-center gap-2 shadow-xl"
-            >
-              <AlertCircle size={18} />
-              <span className="text-sm font-bold">{error}</span>
-            </motion.div>
-          )}
-        </motion.div>
-      </div>
-
-      <div className="lg:col-span-4 space-y-4">
-        <div className="p-8 bg-[#f1f3f9]/50 backdrop-blur-sm rounded-[40px] border border-white flex flex-col gap-6">
-          <h4 className="text-sm font-black text-[#1a1c1e]/40 uppercase tracking-[0.2em]">Quick Links</h4>
-
-          <button className="flex items-center gap-4 p-5 bg-white rounded-[28px] hover:shadow-lg transition-all text-left group">
-            <div className="w-12 h-12 bg-[#e8f5e9] text-[#2e7d32] rounded-2xl flex items-center justify-center group-hover:rotate-12 transition-transform">
-              <Smartphone size={24} />
+            <div className="space-y-3">
+              <h3 className="text-2xl font-google-sans font-bold text-[#1a1c1e]">Drop your file here</h3>
+              <p className="text-[#74777f] font-medium">Or click to browse from device</p>
             </div>
-            <div>
-              <span className="block font-bold text-[#1a1c1e]">Mobile App</span>
-              <span className="text-xs text-[#74777f]">Transfer wirelessly</span>
-            </div>
-          </button>
 
-          <button className="flex items-center gap-4 p-5 bg-white rounded-[28px] hover:shadow-lg transition-all text-left group">
-            <div className="w-12 h-12 bg-[#d3e4ff] text-[#005fb0] rounded-2xl flex items-center justify-center group-hover:rotate-12 transition-transform">
-              <Cloud size={24} />
+            <div className="mt-10 flex gap-2">
+              {['PDF', 'DOCX', 'IMAGES'].map(t => (
+                <span key={t} className="px-4 py-2 bg-[#f1f3f9] text-[#44474e] rounded-full text-[10px] font-black tracking-widest uppercase">
+                  {t}
+                </span>
+              ))}
             </div>
-            <div>
-              <span className="block font-bold text-[#1a1c1e]">Cloud Storage</span>
-              <span className="text-xs text-[#74777f]">Drive, OneDrive</span>
-            </div>
-          </button>
+
+            {error && (
+              <motion.div
+                initial={{ opacity: 0, scale: 0.9 }}
+                animate={{ opacity: 1, scale: 1 }}
+                className="absolute top-6 bg-[#ba1a1a] text-white px-6 py-3 rounded-full flex items-center gap-2 shadow-xl"
+              >
+                <AlertCircle size={18} />
+                <span className="text-sm font-bold">{error}</span>
+              </motion.div>
+            )}
+          </motion.div>
         </div>
 
-        <div className="p-6 flex items-center gap-3 text-[#74777f] text-[11px] font-bold uppercase tracking-widest justify-center">
-          <ShieldCheck size={16} className="text-[#2e7d32]" />
-          Privacy First Encryption
+        <div className="lg:col-span-4 space-y-4">
+          <div className="p-8 bg-[#f1f3f9]/50 backdrop-blur-sm rounded-[40px] border border-white flex flex-col gap-6">
+            <h4 className="text-sm font-black text-[#1a1c1e]/40 uppercase tracking-[0.2em]">Quick Links</h4>
+
+            <button className="flex items-center gap-4 p-5 bg-white rounded-[28px] hover:shadow-lg transition-all text-left group">
+              <div className="w-12 h-12 bg-[#e8f5e9] text-[#2e7d32] rounded-2xl flex items-center justify-center group-hover:rotate-12 transition-transform">
+                <Smartphone size={24} />
+              </div>
+              <div>
+                <span className="block font-bold text-[#1a1c1e]">Mobile App</span>
+                <span className="text-xs text-[#74777f]">Transfer wirelessly</span>
+              </div>
+            </button>
+
+            <button className="flex items-center gap-4 p-5 bg-white rounded-[28px] hover:shadow-lg transition-all text-left group">
+              <div className="w-12 h-12 bg-[#d3e4ff] text-[#005fb0] rounded-2xl flex items-center justify-center group-hover:rotate-12 transition-transform">
+                <Cloud size={24} />
+              </div>
+              <div>
+                <span className="block font-bold text-[#1a1c1e]">Cloud Storage</span>
+                <span className="text-xs text-[#74777f]">Drive, OneDrive</span>
+              </div>
+            </button>
+          </div>
+
+          <div className="p-6 flex items-center gap-3 text-[#74777f] text-[11px] font-bold uppercase tracking-widest justify-center">
+            <ShieldCheck size={16} className="text-[#2e7d32]" />
+            Privacy First Encryption
+          </div>
         </div>
       </div>
-    </div>
     </div >
   );
 };
