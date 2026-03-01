@@ -30,29 +30,35 @@ const KioskScreen: React.FC = () => {
         [`databases.${dbId}.collections.${collId}.documents`],
         (response) => {
           console.log("Realtime Event Received:", response);
+          setDebugInfo(`RT Event: ${response.events[0]} | PayloadKeys: ${Object.keys(response.payload).join(',')}`);
+
           if (response.events.some(e => e.includes('.create') || e.includes('.update'))) {
             const job = response.payload as any; // Type assertion needed or precise type
             console.log("New Document Created:", job);
 
+            setDebugInfo(`RT Job: ID=${job.kioskId}, Status=${job.status}`);
+
             // Check if job is for this Kiosk
-            if (job.kioskId === kioskId) {
+            if (String(job.kioskId) === String(kioskId)) {
               if (job.status === 'CONNECTED') {
                 console.log("User Connected Handshake Received!");
+                setDebugInfo(`RT Matched! Handshake OK`);
                 setConnectedUser('User'); // Could pass name in handshake later
                 setKioskStatus('CONNECTED');
 
               } else if (job.status === 'PENDING') {
                 console.log("Job Matches Kiosk ID! Starting Print...");
+                setDebugInfo(`RT Matched! Print PENDING`);
                 // Convert Appwrite doc to PrintJob (parsing JSON strings back)
                 const newJob: PrintJob = {
                   id: job.$id,
-                  file: JSON.parse(job.fileData),
-                  settings: JSON.parse(job.settings),
+                  file: JSON.parse(job.fileData || '{}'),
+                  settings: JSON.parse(job.settings || '{}'),
                   timestamp: job.timestamp,
                   amount: job.amount,
                   status: 'PENDING',
                   releaseCode: job.releaseCode,
-                  kioskId: job.kioskId,
+                  kioskId: String(job.kioskId),
                   flow: 'DIRECT' as any
                 };
 
@@ -61,6 +67,7 @@ const KioskScreen: React.FC = () => {
               }
             } else {
               console.log("Job ignored (ID mismatch)", { jobKioskId: job.kioskId, myKioskId: kioskId });
+              setDebugInfo(`RT Ignored! MyID: ${kioskId}, JobID: ${job.kioskId}`);
             }
           }
         }
