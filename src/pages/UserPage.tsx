@@ -4,7 +4,7 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { Smartphone, Monitor, Wifi, WifiOff } from 'lucide-react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import client, { databases, storage } from '@/src/lib/appwrite';
-import { ID, Permission, Role } from 'appwrite';
+import { ID, Permission, Role, Query } from 'appwrite';
 import { AppStep, PrintSettings, PrintColorMode, PaperSize, FileData, PrintJob, PrintTransaction, PrintFlow } from '@/types';
 import ConnectScreen from '@/screens/ConnectScreen';
 import UploadScreen from '@/screens/UploadScreen';
@@ -66,9 +66,6 @@ const UserPage: React.FC = () => {
     }, []);
 
     const handleConnect = async (kioskId: string) => {
-        setConnectedKioskId(kioskId);
-        setPrintFlow(PrintFlow.DIRECT);
-
         try {
             const dbId = import.meta.env.VITE_APPWRITE_DATABASE_ID;
             const collId = import.meta.env.VITE_APPWRITE_COLLECTION_ID;
@@ -77,6 +74,35 @@ const UserPage: React.FC = () => {
             client.setEndpoint(endpoint).setProject(projectId);
 
             setDebugInfo(`Appwrite Connect Attempt: Project:${projectId}`);
+
+            // PRE-FLIGHT CHECK: Is the Kiosk already in use?
+            const threeMinsAgo = new Date(Date.now() - 3 * 60000).toISOString();
+
+            const activeSessions = await databases.listDocuments(
+                dbId,
+                collId,
+                [
+                    Query.equal('kioskId', kioskId),
+                    Query.greaterThan('$createdAt', threeMinsAgo),
+                    Query.orderDesc('$createdAt'),
+                    Query.limit(5)
+                ]
+            );
+
+            // Look for any active status
+            const inUse = activeSessions.documents.some(doc =>
+                ['CONNECTED', 'PENDING', 'QUEUED', 'PRINTING'].includes(doc.status)
+            );
+
+            if (inUse) {
+                alert("This Kiosk is currently in use. Please wait until the current user finishes.");
+                setDebugInfo(`Handshake Blocked: Kiosk ${kioskId} is locked.`);
+                return; // Stop progression
+            }
+
+            // Kiosk is free, proceed with lock
+            setConnectedKioskId(kioskId);
+            setPrintFlow(PrintFlow.DIRECT);
 
             await databases.createDocument(dbId, collId, ID.unique(), {
                 kioskId: kioskId,

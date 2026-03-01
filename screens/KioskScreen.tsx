@@ -245,6 +245,16 @@ const KioskScreen: React.FC = () => {
   };
 
   useEffect(() => {
+    if (kioskStatus === 'CONNECTED') {
+      const idleTimer = setTimeout(() => {
+        console.log('Session abandoned (3 mins idle). Resetting kiosk...');
+        setDebugInfo('Idle Timeout: Resetting to Home');
+        resetKiosk();
+      }, 180000); // 3 minutes
+
+      return () => clearTimeout(idleTimer);
+    }
+
     if (kioskStatus === 'PRINTING') {
       const interval = setInterval(() => {
         setProgress(prev => {
