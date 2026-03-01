@@ -1,4 +1,14 @@
 {
+    "env": {
+        "VITE_APPWRITE_PROJECT_ID": "6986c8a8001fcf92431f",
+        "VITE_APPWRITE_PROJECT_NAME": "PrintGo_Smart",
+        "VITE_APPWRITE_ENDPOINT": "https://fra.cloud.appwrite.io/v1",
+        "VITE_APPWRITE_DATABASE_ID": "6986ce080036e1bb2059",
+        "VITE_APPWRITE_COLLECTION_ID": "printgo_db",
+        "VITE_APPWRITE_BUCKET_ID": "print_files",
+        "VITE_RAZORPAY_KEY_ID": "rzp_test_SLuHCQBSdolaK2",
+        "RAZORPAY_KEY_SECRET": "pr5BCPVBPJebPYyQmFY1ytgn"
+    },
     "rewrites": [
         {
             "source": "/api/(.*)",
