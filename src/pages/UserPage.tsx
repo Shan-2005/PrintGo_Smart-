@@ -58,7 +58,7 @@ const UserPage: React.FC = () => {
         }
     }, []);
 
-    const handleConnect = async (kioskId: string): Promise<void> => {
+    const handleConnect = async (kioskId: string) => {
         setConnectedKioskId(kioskId);
         setPrintFlow(PrintFlow.DIRECT);
 
@@ -67,7 +67,7 @@ const UserPage: React.FC = () => {
             const dbId = import.meta.env.VITE_APPWRITE_DATABASE_ID;
             const collId = import.meta.env.VITE_APPWRITE_COLLECTION_ID;
 
-            const doc = await databases.createDocument(dbId, collId, ID.unique(), {
+            await databases.createDocument(dbId, collId, ID.unique(), {
                 kioskId: kioskId,
                 status: 'CONNECTED',
                 fileData: '{}', // Dummy data to satisfy schema if needed
@@ -77,39 +77,17 @@ const UserPage: React.FC = () => {
                 timestamp: Date.now()
             });
 
-            // Wait for Kiosk Ack
-            return new Promise((resolve, reject) => {
-                const timeout = setTimeout(() => {
-                    unsubscribe();
-                    reject(new Error("Handshake timeout: Kiosk did not respond."));
-                }, 15000); // 15 second timeout
-
-                const unsubscribe = client.subscribe(
-                    [`databases.${dbId}.collections.${collId}.documents.${doc.$id}`],
-                    (response) => {
-                        const updatedDoc = response.payload as any;
-                        if (updatedDoc.status === 'ACK_CONNECTED') {
-                            clearTimeout(timeout);
-                            unsubscribe();
-
-                            localStorage.setItem(`kiosk_status_${kioskId}`, JSON.stringify({
-                                status: 'CONNECTED',
-                                userName: 'Alex',
-                                timestamp: Date.now()
-                            }));
-
-                            setCurrentStep(AppStep.UPLOAD);
-                            resolve();
-                        }
-                    }
-                );
-            });
-
         } catch (e) {
             console.error("Handshake failed", e);
-            throw e;
         }
 
+        localStorage.setItem(`kiosk_status_${kioskId}`, JSON.stringify({
+            status: 'CONNECTED',
+            userName: 'Alex',
+            timestamp: Date.now()
+        }));
+
+        setCurrentStep(AppStep.UPLOAD);
     };
 
     const handleSkipConnect = () => {
