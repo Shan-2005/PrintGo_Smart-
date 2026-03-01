@@ -84,23 +84,21 @@ const PaymentScreen: React.FC<PaymentScreenProps> = ({ settings, amount, onPayme
         prefill: {
           name: 'PrintGo Guest',
           email: 'guest@printgo.in',
-          contact: '9999999999'
+          contact: '9999999999',
+          method: 'upi' // Priority prefill
         },
+        method: 'upi', // Force UPI method
         config: {
           display: {
             blocks: {
               upi: {
                 name: "Pay via UPI / Apps",
-                instruments: [
-                  {
-                    method: "upi"
-                  }
-                ]
+                instruments: [{ method: "upi" }]
               }
             },
             sequence: ["block.upi"],
             preferences: {
-              show_default_blocks: true
+              show_default_blocks: false // Only show our UPI block
             }
           }
         },
@@ -109,6 +107,7 @@ const PaymentScreen: React.FC<PaymentScreenProps> = ({ settings, amount, onPayme
         },
         modal: {
           ondismiss: () => {
+            console.log("Checkout modal dismissed by user");
             setPaymentState('READY');
           }
         },
@@ -118,12 +117,13 @@ const PaymentScreen: React.FC<PaymentScreenProps> = ({ settings, amount, onPayme
         }
       };
 
+      console.log('🚀 Opening Razorpay with forced UPI method...');
       const rzp = new window.Razorpay(options);
       rzp.open();
       setPaymentState('AWAITING_PAYMENT');
 
     } catch (error: any) {
-      console.error('Checkout Error:', error);
+      console.error('❌ Checkout Error:', error);
       setPaymentState('ERROR');
       setErrorMessage(error.message || 'Failed to initiate checkout');
     }
