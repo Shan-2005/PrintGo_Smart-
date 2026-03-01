@@ -67,7 +67,7 @@ const UserPage: React.FC = () => {
             const dbId = import.meta.env.VITE_APPWRITE_DATABASE_ID;
             const collId = import.meta.env.VITE_APPWRITE_COLLECTION_ID;
 
-            await databases.createDocument(dbId, collId, 'unique()', {
+            await databases.createDocument(dbId, collId, ID.unique(), {
                 kioskId: kioskId,
                 status: 'CONNECTED',
                 fileData: '{}', // Dummy data to satisfy schema if needed
@@ -170,7 +170,7 @@ const UserPage: React.FC = () => {
             if (paymentId) {
                 (payload as any).paymentId = paymentId;
             }
-            await databases.createDocument(dbId, collId, 'unique()', payload);
+            await databases.createDocument(dbId, collId, ID.unique(), payload);
 
             if (printFlow === PrintFlow.DIRECT && connectedKioskId) {
                 // For Direct flow, we still rely on the subscription on the other end

@@ -70,24 +70,35 @@ const KioskScreen: React.FC = () => {
       console.error("Subscription Error:", err);
     }
 
-    // Fallback: Check localStorage periodically in case Realtime socket fails
-    const fallbackInterval = setInterval(() => {
+    // Fallback: Check Appwrite periodically in case Realtime socket fails or gets blocked by the network
+    const fallbackInterval = setInterval(async () => {
       if (kioskStatus === 'IDLE') {
-        const localStatus = localStorage.getItem(`kiosk_status_${kioskId}`);
-        if (localStatus) {
-          try {
-            const parsed = JSON.parse(localStatus);
-            if (parsed.status === 'CONNECTED') {
-              console.log("Fallback: Handshake found in localStorage!");
-              setConnectedUser(parsed.userName || 'User');
+        try {
+          const response = await databases.listDocuments(
+            dbId,
+            collId,
+            [
+              Query.equal('kioskId', kioskId),
+              Query.equal('status', 'CONNECTED'),
+              Query.orderDesc('$createdAt'),
+              Query.limit(1)
+            ]
+          );
+
+          if (response.documents.length > 0) {
+            const doc = response.documents[0];
+            // Only accept recent connections (within the last 2 minutes)
+            if (Date.now() - doc.timestamp < 2 * 60 * 1000) {
+              console.log("Fallback: Handshake found via REST polling!");
+              setConnectedUser('User');
               setKioskStatus('CONNECTED');
             }
-          } catch (e) {
-            // Ignore parse errors
           }
+        } catch (e) {
+          // Ignore polling errors to not flood console
         }
       }
-    }, 2000);
+    }, 3000);
 
     return () => {
       clearInterval(fallbackInterval);
