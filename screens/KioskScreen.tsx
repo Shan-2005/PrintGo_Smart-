@@ -1,504 +1,546 @@
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Printer, CornerDownLeft, FileText, CheckCircle2, AlertTriangle, Droplet, QrCode, Smartphone, Users, Keyboard, Power, Wifi } from 'lucide-react';
+import {
+  Printer, CornerDownLeft, FileText, CheckCircle2, AlertTriangle,
+  Droplet, QrCode, Smartphone, Users, Keyboard, Power, Wifi,
+  Loader2, RefreshCw, XCircle
+} from 'lucide-react';
 import client, { databases } from '@/src/lib/appwrite';
 import { Query } from 'appwrite';
 import { PrintJob } from '../types';
 import QRCode from 'react-qr-code';
 
+/**
+ * KioskSide Reconstruction
+ * 
+ * Rebuilds the Kiosk terminal logic to be modular, robust, and visually premium.
+ * Uses a unified synchronization effect for Appwrite events and polling.
+ */
+
+// Configuration Constants
+const KIOSK_ID = '102';
+const SYNC_INTERVAL_MS = 3000;
+const SESSION_TIMEOUT_MS = 180000; // 3 minutes
+
+type KioskStatus = 'IDLE' | 'CONNECTED' | 'MANUAL_ENTRY' | 'PRINTING' | 'COMPLETE' | 'ERROR';
+
 const KioskScreen: React.FC = () => {
-  const kioskId = '102';
-  const [inputCode, setInputCode] = useState('');
-  const [kioskStatus, setKioskStatus] = useState<'IDLE' | 'CONNECTED' | 'MANUAL_ENTRY' | 'PRINTING' | 'COMPLETE' | 'ERROR'>('IDLE');
+  // --- State ---
+  const [status, setStatus] = useState<KioskStatus>('IDLE');
   const [activeJob, setActiveJob] = useState<PrintJob | null>(null);
   const [connectedUser, setConnectedUser] = useState<string | null>(null);
   const [progress, setProgress] = useState(0);
-  const [debugInfo, setDebugInfo] = useState<string>('Booting Kiosk...');
-  const lastSeenDocId = useRef<string | null>(null);
-  const isBooting = useRef<boolean>(true);
+  const [inputCode, setInputCode] = useState('');
+  const [debugLog, setDebugLog] = useState<string[]>(['[System] Initializing...']);
 
-  // Real-time synchronization with Appwrite
+  // --- Refs for Synchronization ---
+  const lastProcessedDocId = useRef<string | null>(null);
+  const isInitialBoot = useRef(true);
+  const syncTimer = useRef<NodeJS.Timeout | null>(null);
+  const progressTimer = useRef<NodeJS.Timeout | null>(null);
+
+  // --- Utility: Logging ---
+  const addLog = useCallback((msg: string) => {
+    console.log(`[Kiosk] ${msg}`);
+    setDebugLog(prev => [`[${new Date().toLocaleTimeString()}] ${msg}`, ...prev].slice(0, 5));
+  }, []);
+
+  // --- Core Handlers ---
+  const resetKiosk = useCallback(() => {
+    addLog('Resetting to IDLE state');
+    setStatus('IDLE');
+    setActiveJob(null);
+    setConnectedUser(null);
+    setProgress(0);
+    setInputCode('');
+    // Note: We don't reset lastProcessedDocId here because we want to keep ignoring old docs
+  }, [addLog]);
+
+  const handleJobReceived = useCallback((doc: any) => {
+    if (doc.$id === lastProcessedDocId.current) return;
+    lastProcessedDocId.current = doc.$id;
+
+    addLog(`Incoming Action: ${doc.status}`);
+
+    if (doc.status === 'CONNECTED' && status === 'IDLE') {
+      setConnectedUser('User');
+      setStatus('CONNECTED');
+    }
+    else if (doc.status === 'QUEUED' || doc.status === 'PENDING') {
+      try {
+        const job: PrintJob = {
+          id: doc.$id,
+          file: JSON.parse(doc.fileData || '{}'),
+          settings: JSON.parse(doc.settings || '{}'),
+          timestamp: doc.timestamp,
+          amount: doc.amount,
+          status: 'PENDING',
+          releaseCode: doc.releaseCode,
+          kioskId: String(doc.kioskId),
+          flow: doc.flow || 'DIRECT'
+        };
+        setActiveJob(job);
+        setStatus('PRINTING');
+        setProgress(0);
+      } catch (e) {
+        addLog('Error parsing job data');
+      }
+    }
+    else if (doc.status === 'COMPLETED' && status === 'PRINTING') {
+      setStatus('COMPLETE');
+      setProgress(100);
+    }
+  }, [status, addLog]);
+
+  // --- Appwrite Synchronization Effect ---
   useEffect(() => {
     const dbId = import.meta.env.VITE_APPWRITE_DATABASE_ID;
     const collId = import.meta.env.VITE_APPWRITE_COLLECTION_ID;
-    const projectId = import.meta.env.VITE_APPWRITE_PROJECT_ID;
-    const endpoint = import.meta.env.VITE_APPWRITE_ENDPOINT;
 
-    // Force client configuration on mount just in case initial hydration missed it
-    client.setEndpoint(endpoint).setProject(projectId);
-
-    console.log("Starting Realtime Subscription...", { dbId, collId });
-    setDebugInfo(`Init. Project: ${projectId || 'MISSING'}, DB: ${dbId || 'MISSING'}`);
-
-    try {
-      const unsubscribe = client.subscribe(
-        [`databases.${dbId}.collections.${collId}.documents`],
-        (response) => {
-          console.log("Realtime Event Received:", response);
-          setDebugInfo(`RT Event: ${response.events[0]} | PayloadKeys: ${Object.keys(response.payload).join(',')}`);
-
-          if (response.events.some(e => e.includes('.create') || e.includes('.update'))) {
-            const job = response.payload as any; // Type assertion needed or precise type
-            console.log("New Document Created:", job);
-
-            setDebugInfo(`RT Job: ID=${job.kioskId}, Status=${job.status}`);
-
-            // Check if job is for this Kiosk
-            if (String(job.kioskId) === String(kioskId)) {
-              if (job.status === 'CONNECTED') {
-                console.log("User Connected Handshake Received!");
-                setDebugInfo(`RT Matched! Handshake OK`);
-                setConnectedUser('User'); // Could pass name in handshake later
-                setKioskStatus('CONNECTED');
-
-              } else if (job.status === 'PENDING' || job.status === 'QUEUED') {
-                console.log("Job Matches Kiosk ID! Starting Print...");
-                setDebugInfo(`RT Matched! Print ${job.status}`);
-                // Convert Appwrite doc to PrintJob (parsing JSON strings back)
-                const newJob: PrintJob = {
-                  id: job.$id,
-                  file: JSON.parse(job.fileData || '{}'),
-                  settings: JSON.parse(job.settings || '{}'),
-                  timestamp: job.timestamp,
-                  amount: job.amount,
-                  status: 'PENDING',
-                  releaseCode: job.releaseCode,
-                  kioskId: String(job.kioskId),
-                  flow: 'DIRECT' as any
-                };
-
-                setActiveJob(newJob);
-                setKioskStatus('PRINTING');
-              }
-            } else {
-              console.log("Job ignored (ID mismatch)", { jobKioskId: job.kioskId, myKioskId: kioskId });
-              setDebugInfo(`RT Ignored! MyID: ${kioskId}, JobID: ${job.kioskId}`);
-            }
-          }
-        }
-      );
-      console.log("Subscribed successfully.");
-      setDebugInfo(prev => prev + ' | Subscribed OK');
-
-      return () => {
-        unsubscribe();
-      };
-    } catch (err: any) {
-      console.error("Subscription Error:", err);
-      setDebugInfo(prev => prev + ` | Sub Error: ${err?.message || JSON.stringify(err)}`);
-    }
-
-    // Bulletproof Polling: Track by Document ID instead of unreliable clocks
-    const fallbackInterval = setInterval(async () => {
+    const performSync = async () => {
       try {
         const response = await databases.listDocuments(
           dbId,
           collId,
           [
-            Query.equal('kioskId', kioskId),
+            Query.equal('kioskId', KIOSK_ID),
             Query.orderDesc('$createdAt'),
             Query.limit(1)
           ]
         );
 
         if (response.documents.length > 0) {
-          const doc = response.documents[0];
+          const latestDoc = response.documents[0];
 
-          // Seed the initial document on first boot so we ignore historical data
-          if (isBooting.current) {
-            lastSeenDocId.current = doc.$id;
-            isBooting.current = false;
-            setDebugInfo(prev => prev + ` | Baseline set: ${doc.$id}`);
+          if (isInitialBoot.current) {
+            lastProcessedDocId.current = latestDoc.$id;
+            isInitialBoot.current = false;
+            addLog(`Baseline set: ${latestDoc.$id}`);
             return;
           }
 
-          // Exactly ONE new document surfaced
-          if (doc.$id !== lastSeenDocId.current) {
-            console.log("New Document detected via polling!", doc);
-            lastSeenDocId.current = doc.$id;
-
-            if (doc.status === 'CONNECTED' && kioskStatus === 'IDLE') {
-              setDebugInfo(`Poll Matched! Handshake OK`);
-              setConnectedUser('User');
-              setKioskStatus('CONNECTED');
-            } else if (doc.status === 'PENDING' || doc.status === 'QUEUED') {
-              setDebugInfo(`Poll Matched! Print Job Started (${doc.status})`);
-              const newJob: PrintJob = {
-                id: doc.$id,
-                file: JSON.parse(doc.fileData || '{}'),
-                settings: JSON.parse(doc.settings || '{}'),
-                timestamp: doc.timestamp,
-                amount: doc.amount,
-                status: 'PENDING',
-                releaseCode: doc.releaseCode,
-                kioskId: String(doc.kioskId),
-                flow: 'DIRECT' as any
-              };
-              setActiveJob(newJob);
-              setKioskStatus('PRINTING');
-            }
+          if (latestDoc.$id !== lastProcessedDocId.current) {
+            handleJobReceived(latestDoc);
           }
         } else {
-          isBooting.current = false; // No docs exist, ready for first one
+          isInitialBoot.current = false;
         }
-      } catch (e: any) {
-        if (!debugInfo.includes('PollErr')) {
-          setDebugInfo(prev => prev + ` | PollErr: ${e?.message || 'Unknown'}`);
+      } catch (err: any) {
+        addLog(`Sync Warning: ${err.message}`);
+      }
+    };
+
+    // 1. Real-time Subscription
+    const unsubscribe = client.subscribe(
+      [`databases.${dbId}.collections.${collId}.documents`],
+      (response) => {
+        const payload = response.payload as any;
+        if (String(payload.kioskId) === KIOSK_ID) {
+          handleJobReceived(payload);
         }
       }
-    }, 2500);
+    );
+
+    // 2. Polling Fallback
+    syncTimer.current = setInterval(performSync, SYNC_INTERVAL_MS);
+    performSync(); // Initial check
 
     return () => {
-      clearInterval(fallbackInterval);
+      unsubscribe();
+      if (syncTimer.current) clearInterval(syncTimer.current);
     };
-  }, [kioskStatus]);
+  }, [handleJobReceived, addLog]);
 
-  const forceCheckApi = async () => {
-    try {
-      setDebugInfo('Forcing API Fetch...');
-      const dbId = import.meta.env.VITE_APPWRITE_DATABASE_ID;
-      const collId = import.meta.env.VITE_APPWRITE_COLLECTION_ID;
-      const projectId = import.meta.env.VITE_APPWRITE_PROJECT_ID;
-      const endpoint = import.meta.env.VITE_APPWRITE_ENDPOINT;
-
-      const url = `${endpoint}/databases/${dbId}/collections/${collId}/documents?queries[]=equal("kioskId", ["${kioskId}"])&queries[]=orderDesc("$createdAt")&queries[]=limit(5)`;
-
-      const res = await fetch(url, {
-        headers: {
-          'X-Appwrite-Project': projectId
-        }
-      });
-
-      const data = await res.json();
-      console.log("FORCE FETCH RESULTS:", data);
-
-      if (data.documents && data.documents.length > 0) {
-        setDebugInfo(`Force Fetch OK! Found ${data.documents.length}. Newest: [${data.documents[0].status}] at ${data.documents[0].$updatedAt}`);
-
-        // Brute force state update if it finds a handshake
-        const doc = data.documents[0];
-        if (doc.status === 'CONNECTED' && kioskStatus === 'IDLE') {
-          setConnectedUser('User');
-          setKioskStatus('CONNECTED');
-        }
-      } else {
-        setDebugInfo(`Force Fetch OK! But 0 documents found for Kiosk ${kioskId}.`);
-      }
-    } catch (err: any) {
-      console.error(err);
-      setDebugInfo(`Force Fetch Error: ${err.message}`);
+  // --- Side Effects: Animations & Timeouts ---
+  useEffect(() => {
+    // Session Timeout
+    if (status === 'CONNECTED') {
+      const timer = setTimeout(() => {
+        addLog('Session Timeout');
+        resetKiosk();
+      }, SESSION_TIMEOUT_MS);
+      return () => clearTimeout(timer);
     }
-  };
 
-  const handleKeyPress = (num: string) => {
-    if (inputCode.length < 5) setInputCode(prev => prev + num);
-  };
+    // Printing Progress Decoration (Visual only, real status comes from Appwrite/Agent)
+    if (status === 'PRINTING') {
+      progressTimer.current = setInterval(() => {
+        setProgress(prev => (prev < 90 ? prev + 1 : prev)); // Cap at 90% until agent marks COMPLETED
+      }, 500);
+      return () => clearInterval(progressTimer.current);
+    }
 
-  const handleManualVerify = async () => {
+    // Auto-reset after completion
+    if (status === 'COMPLETE') {
+      const timer = setTimeout(resetKiosk, 8000);
+      return () => clearTimeout(timer);
+    }
+  }, [status, resetKiosk, addLog]);
+
+  // --- UI Handlers ---
+  const handleManualEntry = async () => {
+    if (inputCode.length !== 5) return;
+    setStatus('PRINTING'); // Immediate feedback
+    addLog(`Verifying Code: ${inputCode}...`);
+
     try {
       const dbId = import.meta.env.VITE_APPWRITE_DATABASE_ID;
       const collId = import.meta.env.VITE_APPWRITE_COLLECTION_ID;
+
+      addLog(`Searching Appwrite Collection: ${collId}`);
 
       const response = await databases.listDocuments(
         dbId,
         collId,
-        [Query.equal('releaseCode', inputCode)]
+        [Query.equal('releaseCode', inputCode), Query.limit(1)]
       );
 
       if (response.documents.length > 0) {
-        const job = response.documents[0];
-        const foundJob: PrintJob = {
-          id: job.$id,
-          file: JSON.parse(job.fileData),
-          settings: JSON.parse(job.settings),
-          timestamp: job.timestamp,
-          amount: job.amount,
-          status: 'PENDING',
-          releaseCode: job.releaseCode,
-          kioskId: job.kioskId,
-          flow: 'CLOUD' as any
-        };
-        setActiveJob(foundJob);
+        const doc = response.documents[0];
+        addLog(`Match found! Doc: ${doc.$id} Current Status: ${doc.status}`);
 
-        try {
-          // Trigger Print Agent by updating status to QUEUED
-          await databases.updateDocument(dbId, collId, job.$id, {
-            status: 'QUEUED'
-          });
-          console.log("Status updated to QUEUED");
-        } catch (updateError: any) {
-          console.error("Failed to update status:", updateError);
-          alert(`Error: Kiosk cannot update job. Check Permissions! ${updateError.message}`);
-        }
-
-        setKioskStatus('PRINTING');
-      } else {
-        setKioskStatus('ERROR');
-        setTimeout(() => setKioskStatus('MANUAL_ENTRY'), 2000);
-      }
-    } catch (e) {
-      console.error("Verification failed", e);
-      setKioskStatus('ERROR');
-      setTimeout(() => setKioskStatus('MANUAL_ENTRY'), 2000);
-    }
-  };
-
-  useEffect(() => {
-    if (kioskStatus === 'CONNECTED') {
-      const idleTimer = setTimeout(() => {
-        console.log('Session abandoned (3 mins idle). Resetting kiosk...');
-        setDebugInfo('Idle Timeout: Resetting to Home');
-        resetKiosk();
-      }, 180000); // 3 minutes
-
-      return () => clearTimeout(idleTimer);
-    }
-
-    if (kioskStatus === 'PRINTING') {
-      const interval = setInterval(() => {
-        setProgress(prev => {
-          if (prev >= 100) {
-            clearInterval(interval);
-            setTimeout(() => setKioskStatus('COMPLETE'), 1500);
-            return 100;
-          }
-          return prev + 1;
+        // Trigger agent by updating status and assigning THIS kiosk
+        await databases.updateDocument(dbId, collId, doc.$id, {
+          status: 'QUEUED',
+          kioskId: KIOSK_ID
         });
-      }, 40);
-      return () => clearInterval(interval);
+
+        // Re-use job processing logic
+        handleJobReceived({ ...doc, status: 'QUEUED', kioskId: KIOSK_ID });
+      } else {
+        addLog(`No matching code found for: ${inputCode}`);
+        setStatus('ERROR');
+        setTimeout(() => {
+          setStatus('MANUAL_ENTRY');
+          setInputCode(''); // Clear code on fail
+        }, 2000);
+      }
+    } catch (e: any) {
+      addLog(`Verification Error: ${e.message || JSON.stringify(e)}`);
+      setStatus('ERROR');
+      setTimeout(() => {
+        setStatus('MANUAL_ENTRY');
+        setInputCode('');
+      }, 2000);
     }
-
-    // Auto-reset after completion
-    if (kioskStatus === 'COMPLETE') {
-      const resetTimer = setTimeout(() => {
-        console.log('Auto-resetting kiosk to home screen...');
-        resetKiosk();
-      }, 5000); // 5 seconds after showing completion message
-
-      return () => clearTimeout(resetTimer);
-    }
-  }, [kioskStatus]);
-
-  const resetKiosk = () => {
-    localStorage.removeItem(`kiosk_status_${kioskId}`);
-    localStorage.removeItem(`kiosk_command_${kioskId}`);
-    setInputCode('');
-    setActiveJob(null);
-    setConnectedUser(null);
-    setKioskStatus('IDLE');
-    setProgress(0);
   };
 
-  return (
-    <div className="flex-1 flex flex-col gap-10 max-w-6xl mx-auto w-full pt-2">
-      {/* Top Header Stat Bar */}
-      <div className="flex items-center justify-between px-4">
-        <div className="flex gap-4">
-          <div className="flex items-center gap-2 bg-white/5 px-4 py-2 rounded-xl border border-white/10">
-            <Power size={14} className="text-green-400" />
-            <span className="text-[10px] font-black uppercase tracking-widest text-white/60">System Ready</span>
-          </div>
-          <div className="flex items-center gap-2 bg-white/5 px-4 py-2 rounded-xl border border-white/10">
-            <Wifi size={14} className="text-[#d3e4ff]" />
-            <span className="text-[10px] font-black uppercase tracking-widest text-white/60">Linked: {kioskId}</span>
-          </div>
-        </div>
+  const handleForceSync = () => {
+    addLog('Forcing Sync...');
+    isInitialBoot.current = false; // Ensure it doesn't just baseline
+    // The interval will pick it up or we could trigger performSync directly if it was exposed
+  };
 
-        <div className="flex gap-3">
-          {['C', 'M', 'Y', 'K'].map((ink, idx) => (
-            <div key={ink} className="flex flex-col gap-1">
-              <div className="h-12 w-3 bg-white/10 rounded-full overflow-hidden relative">
-                <div
-                  className={`absolute bottom-0 w-full rounded-full ${idx === 0 ? 'bg-cyan-400' : idx === 1 ? 'bg-pink-400' : idx === 2 ? 'bg-yellow-400' : 'bg-white'}`}
-                  style={{ height: idx === 3 ? '15%' : '70%' }}
-                />
-              </div>
-              <span className="text-[8px] font-bold text-center text-white/40">{ink}</span>
-            </div>
-          ))}
+  // --- Render Helpers ---
+  const renderHeader = () => (
+    <div className="flex items-center justify-between px-6 py-4">
+      <div className="flex gap-4">
+        <div className="flex items-center gap-3 bg-white/5 px-5 py-2.5 rounded-2xl border border-white/10 shadow-lg backdrop-blur-md">
+          <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
+          <span className="text-[10px] font-black uppercase tracking-[0.2em] text-white/80">System Live</span>
+        </div>
+        <div className="flex items-center gap-3 bg-white/5 px-5 py-2.5 rounded-2xl border border-white/10 shadow-lg backdrop-blur-md">
+          <Wifi size={14} className="text-[#d3e4ff]" />
+          <span className="text-[10px] font-black uppercase tracking-[0.2em] text-white/80">Kiosk-{KIOSK_ID}</span>
         </div>
       </div>
 
-      <AnimatePresence mode="wait">
-        {kioskStatus === 'IDLE' && (
-          <motion.div key="idle" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="flex-1 grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
-            <div className="space-y-10 pl-4">
-              <div className="space-y-4">
-                <div className="inline-flex items-center gap-2 px-3 py-1 bg-[#d3e4ff]/10 text-[#d3e4ff] rounded-full text-[10px] font-black uppercase tracking-[0.2em] border border-[#d3e4ff]/20">
-                  Terminal Online
-                </div>
-                <h2 className="text-5xl md:text-6xl lg:text-8xl font-google-sans font-bold text-white tracking-tighter leading-[0.9]">Start <br /><span className="text-[#d3e4ff]">Printing.</span></h2>
-                <p className="text-lg md:text-xl lg:text-2xl text-white/40 leading-relaxed font-medium max-w-sm">Scan the QR code to link your device or use a release code.</p>
-              </div>
-
-              <button onClick={() => setKioskStatus('MANUAL_ENTRY')} className="group flex items-center gap-6 p-6 md:p-6 lg:p-8 bg-white/5 border border-white/10 rounded-[32px] md:rounded-[40px] text-white font-bold hover:bg-white/10 transition-all w-full max-w-md">
-                <div className="w-12 h-12 md:w-14 md:h-14 lg:w-16 lg:h-16 bg-[#d3e4ff]/10 rounded-2xl flex items-center justify-center text-[#d3e4ff] group-hover:scale-110 transition-transform">
-                  <Keyboard size={24} className="md:w-6 md:h-6 lg:w-8 lg:h-8" />
-                </div>
-                <div className="text-left">
-                  <div className="text-xl md:text-xl lg:text-2xl font-google-sans">Release Code</div>
-                  <div className="text-xs md:text-sm text-white/30 font-medium">Enter 5-digit ticket manually</div>
-                </div>
-              </button>
-            </div>
-
-            <div className="bg-white p-6 md:p-10 lg:p-14 rounded-[40px] md:rounded-[56px] lg:rounded-[72px] flex flex-col items-center gap-6 md:gap-8 lg:gap-10 shadow-2xl relative overflow-hidden group w-full max-w-md mx-auto">
-              <div className="absolute top-0 right-0 p-8 opacity-10 group-hover:opacity-20 transition-opacity">
-                <QrCode size={80} className="md:w-[100px] md:h-[100px] lg:w-[120px] lg:h-[120px]" />
-              </div>
-              <div className="w-full aspect-square bg-[#f8f9ff] rounded-[32px] md:rounded-[40px] lg:rounded-[48px] p-4 md:p-6 lg:p-8 border-4 border-[#f1f3f9] relative flex items-center justify-center">
-                <div className="p-6 md:p-8 bg-white rounded-[24px] md:rounded-[32px] lg:rounded-[40px] w-full h-full flex items-center justify-center">
-                  <QRCode
-                    value={`${window.location.protocol}//${window.location.host}/app?connect=${kioskId}`}
-                    size={256}
-                    level="L"
-                    marginSize={4}
-                    style={{ height: "auto", maxWidth: "100%", width: "100%" }}
-                    viewBox={`0 0 256 256`}
-                  />
-                </div>
-              </div>
-              <div className="text-center space-y-2 md:space-y-3">
-                <div className="text-xl md:text-2xl lg:text-3xl font-google-sans font-bold text-[#001c38]">Kiosk Terminal {kioskId}</div>
-                <div className="px-6 py-2 md:px-8 md:py-3 bg-[#005fb0] text-white rounded-full text-[10px] md:text-xs font-black uppercase tracking-[0.2em] shadow-lg shadow-blue-200">
-                  Scan with your Phone
-                </div>
-              </div>
-              <button onClick={forceCheckApi} className="mt-4 px-8 py-4 bg-red-600 text-white font-bold uppercase tracking-widest text-xs rounded-xl shadow-lg hover:bg-red-500 w-full">
-                Force API Check
-              </button>
-            </div>
-          </motion.div>
-        )}
-
-        {kioskStatus === 'CONNECTED' && (
-          <motion.div key="conn" initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} className="flex-1 flex flex-col items-center justify-center text-center gap-12">
-            <div className="relative">
+      <div className="flex gap-4">
+        {['C', 'M', 'Y', 'K'].map((ink, idx) => (
+          <div key={ink} className="flex flex-col gap-1.5 items-center">
+            <div className="h-14 w-3.5 bg-white/5 rounded-full overflow-hidden border border-white/10 relative">
               <motion.div
-                animate={{ scale: [1, 1.05, 1] }}
-                transition={{ duration: 2, repeat: Infinity }}
-                className="w-56 h-56 bg-[#d3e4ff]/10 border border-[#d3e4ff]/30 rounded-[72px] flex items-center justify-center text-[#d3e4ff] shadow-3xl"
-              >
-                <Users size={96} strokeWidth={1} />
-              </motion.div>
-              <motion.div
-                initial={{ scale: 0 }} animate={{ scale: 1 }}
-                className="absolute -bottom-2 -right-2 w-16 h-16 bg-green-500 rounded-full border-8 border-[#000d1a] flex items-center justify-center shadow-lg"
-              >
-                <CheckCircle2 size={32} className="text-white" />
-              </motion.div>
-            </div>
-
-            <div className="space-y-4">
-              <h2 className="text-7xl font-google-sans font-bold text-white tracking-tighter">Hello, <span className="text-[#d3e4ff]">{connectedUser || 'Alex'}!</span></h2>
-              <p className="text-2xl text-white/40 font-medium">You are securely linked. Follow instructions on your phone.</p>
-            </div>
-
-            <button onClick={resetKiosk} className="px-10 py-4 bg-white/5 border border-white/10 rounded-full text-white/40 font-bold uppercase tracking-widest text-[10px] hover:bg-white/10 transition-all">
-              Disconnect Session
-            </button>
-          </motion.div>
-        )}
-
-        {kioskStatus === 'MANUAL_ENTRY' && (
-          <motion.div key="manual" initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="flex-1 flex flex-col items-center justify-center gap-10">
-            <div className="bg-white/5 p-12 rounded-[56px] border border-white/10 backdrop-blur-xl w-full max-w-lg shadow-2xl">
-              <h3 className="text-center text-white/40 font-black uppercase tracking-widest text-xs mb-8">Enter Release Code</h3>
-              <div className="flex justify-center gap-4 mb-12">
-                {[...Array(5)].map((_, i) => (
-                  <div key={i} className="w-16 h-24 bg-[#000d1a] border-2 border-white/10 rounded-2xl flex items-center justify-center text-5xl font-google-sans font-bold text-[#d3e4ff] shadow-inner">
-                    {inputCode[i] || ''}
-                  </div>
-                ))}
-              </div>
-              <div className="grid grid-cols-3 gap-4">
-                {[1, 2, 3, 4, 5, 6, 7, 8, 9].map(n => <button key={n} onClick={() => handleKeyPress(n.toString())} className="h-20 bg-white/5 rounded-3xl text-3xl font-bold text-white hover:bg-white/10 active:scale-90 transition-all border border-white/5">{n}</button>)}
-                <button onClick={() => setKioskStatus('IDLE')} className="h-20 bg-red-500/10 rounded-3xl text-red-400 flex items-center justify-center hover:bg-red-500/20 active:scale-90 transition-all border border-red-500/20"><AlertTriangle size={32} /></button>
-                <button onClick={() => handleKeyPress('0')} className="h-20 bg-white/5 rounded-3xl text-3xl font-bold text-white hover:bg-white/10 border border-white/5">0</button>
-                <button onClick={handleManualVerify} disabled={inputCode.length < 5} className="h-20 bg-[#d3e4ff] rounded-3xl text-[#001c38] flex items-center justify-center disabled:opacity-20 active:scale-90 shadow-xl shadow-blue-500/20"><CornerDownLeft size={32} /></button>
-              </div>
-            </div>
-          </motion.div>
-        )}
-
-        {kioskStatus === 'PRINTING' && activeJob && (
-          <motion.div key="print" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex-1 flex flex-col items-center justify-center gap-16">
-            <div className="relative">
-              <motion.div
-                animate={{ y: [0, -15, 0] }}
-                transition={{ duration: 0.4, repeat: Infinity, ease: "easeInOut" }}
-                className="w-64 h-64 bg-[#d3e4ff]/10 border border-[#d3e4ff]/20 rounded-[80px] flex items-center justify-center text-[#d3e4ff] shadow-3xl"
-              >
-                <Printer size={120} strokeWidth={1} />
-              </motion.div>
-
-              <motion.div
-                initial={{ opacity: 0, y: 0 }}
-                animate={{ opacity: [0, 1, 0], y: 220 }}
-                transition={{ duration: 0.7, repeat: Infinity, ease: "linear" }}
-                className="absolute left-1/2 -translate-x-1/2 top-3/4 w-32 h-44 bg-white/20 border border-white/30 rounded-xl backdrop-blur-md -z-10 shadow-2xl"
+                initial={{ height: 0 }}
+                animate={{ height: idx === 3 ? '25%' : '85%' }}
+                className={`absolute bottom-0 w-full rounded-full ${idx === 0 ? 'bg-cyan-400' : idx === 1 ? 'bg-teal-400' : idx === 2 ? 'bg-indigo-400' : 'bg-white'
+                  } shadow-[0_0_10px_rgba(255,255,255,0.2)]`}
               />
             </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
 
-            <div className="w-full max-w-3xl space-y-8">
-              <div className="flex justify-between items-end text-white">
-                <div className="space-y-1">
-                  <p className="text-xs font-black text-[#d3e4ff] uppercase tracking-[0.4em] opacity-60">Task ID: {activeJob.id}</p>
-                  <h4 className="text-5xl font-google-sans font-bold">{activeJob.file.name}</h4>
+  return (
+    <div className="flex-1 flex flex-col gap-6 max-w-7xl mx-auto w-full min-h-screen relative py-4">
+      {renderHeader()}
+
+      <main className="flex-1 flex flex-col items-center justify-center -mt-10">
+        <AnimatePresence mode="wait">
+          {/* --- IDLE STATE --- */}
+          {status === 'IDLE' && (
+            <motion.div
+              key="idle"
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 1.05 }}
+              className="w-full grid grid-cols-1 lg:grid-cols-2 gap-16 items-center px-8"
+            >
+              <div className="space-y-12">
+                <div className="space-y-6">
+                  <motion.div
+                    initial={{ x: -20, opacity: 0 }}
+                    animate={{ x: 0, opacity: 1 }}
+                    className="inline-flex items-center gap-3 px-4 py-1.5 bg-blue-500/10 text-blue-300 rounded-full text-[11px] font-black uppercase tracking-[0.3em] border border-blue-500/20"
+                  >
+                    Premium Printing Terminal
+                  </motion.div>
+                  <h2 className="text-6xl md:text-8xl lg:text-9xl font-google-sans font-bold text-white tracking-tighter leading-[0.85]">
+                    Print <br /><span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-300 to-indigo-200">Better.</span>
+                  </h2>
+                  <p className="text-xl md:text-2xl text-white/40 leading-relaxed font-medium max-w-md">
+                    Scan the secure code to link your device or use a digital release code.
+                  </p>
                 </div>
-                <div className="text-7xl font-google-sans font-bold text-[#d3e4ff]">{progress}%</div>
+
+                <div className="flex flex-col gap-4 max-w-md">
+                  <button
+                    onClick={() => setStatus('MANUAL_ENTRY')}
+                    className="group relative flex items-center gap-8 p-8 bg-white/5 border border-white/10 rounded-[40px] text-white hover:bg-white/10 transition-all active:scale-[0.98]"
+                  >
+                    <div className="w-16 h-16 bg-blue-500/10 rounded-3xl flex items-center justify-center text-blue-300 group-hover:scale-110 transition-transform">
+                      <Keyboard size={32} />
+                    </div>
+                    <div className="text-left">
+                      <div className="text-2xl font-google-sans font-bold">Release Code</div>
+                      <div className="text-sm text-white/30 font-medium">Direct 5-digit entry</div>
+                    </div>
+                  </button>
+                </div>
               </div>
-              <div className="h-8 bg-white/5 rounded-full overflow-hidden p-2 border border-white/10 shadow-inner">
+
+              <div className="relative group">
+                <div className="absolute -inset-4 bg-gradient-to-tr from-blue-500/20 to-indigo-500/20 rounded-[80px] blur-3xl opacity-50 group-hover:opacity-100 transition-opacity" />
+                <div className="relative bg-white p-12 lg:p-16 rounded-[72px] flex flex-col items-center gap-12 shadow-[0_0_80px_rgba(255,255,255,0.05)] overflow-hidden">
+                  <div className="p-8 bg-blue-50 rounded-[48px] w-full aspect-square flex items-center justify-center border-4 border-white/50 shadow-inner">
+                    <QRCode
+                      value={`${window.location.protocol}//${window.location.host}/app?connect=${KIOSK_ID}`}
+                      size={280}
+                      level="H"
+                      marginSize={0}
+                      className="w-full h-auto"
+                    />
+                  </div>
+                  <div className="text-center space-y-4">
+                    <div className="text-3xl font-google-sans font-bold text-[#001c38]">Terminal {KIOSK_ID}</div>
+                    <div className="px-10 py-4 bg-blue-600 text-white rounded-full text-xs font-black uppercase tracking-[0.25em] shadow-2xl shadow-blue-500/40 active:scale-95 transition-all">
+                      Scan with Phone
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </motion.div>
+          )}
+
+          {/* --- CONNECTED STATE --- */}
+          {status === 'CONNECTED' && (
+            <motion.div
+              key="connected"
+              initial={{ opacity: 0, scale: 1.1 }}
+              animate={{ opacity: 1, scale: 1 }}
+              className="flex flex-col items-center gap-16 text-center"
+            >
+              <div className="relative">
                 <motion.div
-                  className="h-full bg-gradient-to-r from-[#005fb0] to-[#d3e4ff] rounded-full shadow-[0_0_40px_rgba(211,228,255,0.5)]"
-                  initial={{ width: 0 }}
-                  animate={{ width: `${progress}%` }}
+                  animate={{ scale: [1, 1.05, 1], filter: ['blur(0px)', 'blur(1px)', 'blur(0px)'] }}
+                  transition={{ duration: 4, repeat: Infinity }}
+                  className="w-64 h-64 bg-blue-500/10 border border-blue-500/30 rounded-[80px] flex items-center justify-center text-blue-300 shadow-[0_0_60px_rgba(59,130,246,0.2)]"
+                >
+                  <Users size={120} strokeWidth={0.5} />
+                </motion.div>
+                <div className="absolute -bottom-4 -right-4 w-20 h-20 bg-green-500 rounded-full border-[10px] border-[#000d1a] flex items-center justify-center shadow-2xl">
+                  <CheckCircle2 size={40} className="text-white" />
+                </div>
+              </div>
+
+              <div className="space-y-6">
+                <h2 className="text-8xl font-google-sans font-bold text-white tracking-tighter">
+                  Welcome, <br /><span className="text-blue-300">{connectedUser}!</span>
+                </h2>
+                <p className="text-2xl text-white/30 font-medium">Session Active. Continue on your mobile device.</p>
+              </div>
+
+              <button
+                onClick={resetKiosk}
+                className="mt-8 px-12 py-5 bg-white/5 border border-white/10 rounded-full text-white/60 text-xs font-black uppercase tracking-widest hover:bg-red-500/10 hover:text-red-300 hover:border-red-500/20 transition-all"
+              >
+                End Session
+              </button>
+            </motion.div>
+          )}
+
+          {/* --- PRINTING STATE --- */}
+          {status === 'PRINTING' && activeJob && (
+            <motion.div
+              key="printing"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              className="w-full max-w-4xl flex flex-col items-center gap-24 px-8"
+            >
+              <div className="relative">
+                <motion.div
+                  animate={{ y: [0, -20, 0], scale: [1, 1.02, 1] }}
+                  transition={{ duration: 1, repeat: Infinity, ease: "easeInOut" }}
+                  className="w-72 h-72 bg-blue-500/10 border border-blue-400/20 rounded-[80px] flex items-center justify-center text-blue-300 shadow-[0_0_80px_rgba(59,130,246,0.15)]"
+                >
+                  <Printer size={140} strokeWidth={0.5} />
+                </motion.div>
+                <motion.div
+                  initial={{ opacity: 0, y: 0 }}
+                  animate={{ opacity: [0, 1, 0], y: 240 }}
+                  transition={{ duration: 0.8, repeat: Infinity }}
+                  className="absolute top-[80%] left-1/2 -translate-x-1/2 w-40 h-56 bg-white/10 blur-[1px] rounded-2xl -z-10 shadow-2xl"
                 />
               </div>
-              <div className="flex justify-between text-[10px] font-black text-white/30 uppercase tracking-[0.5em]">
-                <span>CYMK ACTIVE</span>
-                <span>PAGE {Math.floor((progress / 100) * (activeJob?.file.pages || 1)) + 1} OF {activeJob.file.pages}</span>
+
+              <div className="w-full space-y-12">
+                <div className="flex justify-between items-end border-b border-white/10 pb-8">
+                  <div className="space-y-3">
+                    <div className="text-[11px] font-black text-blue-400 uppercase tracking-[0.5em] opacity-80">Job In Progress: {activeJob.id}</div>
+                    <h4 className="text-6xl font-google-sans font-bold text-white">{activeJob.file.name}</h4>
+                  </div>
+                  <div className="text-8xl font-google-sans font-bold text-blue-300 tabular-nums">
+                    {progress}%
+                  </div>
+                </div>
+
+                <div className="space-y-8">
+                  <div className="h-4 bg-white/5 rounded-full overflow-hidden p-1 border border-white/10 shadow-inner luxury-progress">
+                    <motion.div
+                      className="h-full bg-gradient-to-r from-blue-600 via-indigo-400 to-blue-300 rounded-full shadow-[0_0_30px_rgba(59,130,246,0.5)]"
+                      initial={{ width: 0 }}
+                      animate={{ width: `${progress}%` }}
+                    />
+                  </div>
+                  <div className="flex justify-between items-center text-[11px] font-black text-white/30 uppercase tracking-[0.4em]">
+                    <div className="flex gap-4">
+                      <span className="flex items-center gap-2"><Loader2 size={12} className="animate-spin" /> Hardware Link Active</span>
+                      <span className="flex items-center gap-2 decoration-green-500/50 underline">{activeJob.settings.colorMode}</span>
+                    </div>
+                    <span>{activeJob.file.pages} Pages • Single Copy</span>
+                  </div>
+                </div>
               </div>
-            </div>
-          </motion.div>
-        )}
-
-        {kioskStatus === 'COMPLETE' && (
-          <motion.div key="done" initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} className="flex-1 flex flex-col items-center justify-center text-center gap-12">
-            <motion.div
-              initial={{ rotate: -15, scale: 0.8 }} animate={{ rotate: 0, scale: 1 }}
-              className="w-56 h-56 bg-green-500/20 text-green-400 rounded-[80px] flex items-center justify-center border-4 border-green-500/30 shadow-2xl shadow-green-500/10"
-            >
-              <CheckCircle2 size={120} strokeWidth={1} />
             </motion.div>
-            <div className="space-y-4">
-              <h2 className="text-7xl font-google-sans font-bold text-white tracking-tighter">Collection Ready</h2>
-              <p className="text-2xl text-white/40 font-medium">Your documents are in the exit tray. Have a great day!</p>
-            </div>
-            <button onClick={resetKiosk} className="mt-8 px-16 py-6 bg-white text-[#001c38] rounded-[36px] font-bold text-2xl hover:bg-[#d3e4ff] transition-all shadow-2xl active:scale-95">
-              Back to Home
-            </button>
-          </motion.div>
-        )}
+          )}
 
-        {kioskStatus === 'ERROR' && (
-          <motion.div key="err" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex-1 flex flex-col items-center justify-center text-center gap-8">
-            <div className="w-32 h-32 bg-red-500/10 rounded-full flex items-center justify-center border-2 border-red-500/20">
-              <AlertTriangle size={64} className="text-red-400" />
-            </div>
-            <div className="space-y-2">
-              <h2 className="text-4xl font-google-sans font-bold text-white">Invalid Release Code</h2>
-              <p className="text-xl text-white/30">Code {inputCode} was not found in our secure database.</p>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+          {/* --- MANUAL ENTRY STATE --- */}
+          {status === 'MANUAL_ENTRY' && (
+            <motion.div
+              key="manual"
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="w-full max-w-xl flex flex-col gap-10"
+            >
+              <div className="bg-white/5 backdrop-blur-3xl p-16 rounded-[64px] border border-white/10 shadow-2xl">
+                <h3 className="text-center text-white/40 font-black uppercase tracking-[0.4em] text-xs mb-12">Enter Release Code</h3>
+                <div className="flex justify-center gap-5 mb-16">
+                  {[...Array(5)].map((_, i) => (
+                    <div key={i} className="w-20 h-28 bg-[#000d1a] border-2 border-white/10 rounded-3xl flex items-center justify-center text-6xl font-google-sans font-bold text-blue-300 shadow-inner">
+                      {inputCode[i] || ''}
+                    </div>
+                  ))}
+                </div>
+                <div className="grid grid-cols-3 gap-5">
+                  {[1, 2, 3, 4, 5, 6, 7, 8, 9].map(n => (
+                    <button
+                      key={n}
+                      onClick={() => inputCode.length < 5 && setInputCode(p => p + n)}
+                      className="h-24 bg-white/5 rounded-[32px] text-4xl font-bold text-white hover:bg-white/10 active:scale-90 transition-all border border-white/5"
+                    >
+                      {n}
+                    </button>
+                  ))}
+                  <button onClick={resetKiosk} className="h-24 bg-red-500/10 rounded-[32px] text-red-500 flex items-center justify-center hover:bg-red-500/20 active:scale-90 transition-all border border-red-500/10"><XCircle size={32} /></button>
+                  <button onClick={() => inputCode.length < 5 && setInputCode(p => p + '0')} className="h-24 bg-white/5 rounded-[32px] text-4xl font-bold text-white hover:bg-white/10 border border-white/5">0</button>
+                  <button
+                    onClick={handleManualEntry}
+                    disabled={inputCode.length < 5}
+                    className="h-24 bg-blue-600 rounded-[32px] text-white flex items-center justify-center disabled:opacity-20 active:scale-90 shadow-xl shadow-blue-600/30 transition-all"
+                  >
+                    <CornerDownLeft size={36} />
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          )}
 
-      {/* VERCEL PRODUCTION DEBUG OVERLAY */}
-      <div className="fixed bottom-0 left-0 p-4 bg-black/80 text-red-400 font-mono text-xs z-50 max-w-lg break-words pointer-events-none">
-        Debug: {debugInfo}
-      </div>
+          {/* --- COMPLETE STATE --- */}
+          {status === 'COMPLETE' && (
+            <motion.div
+              key="complete"
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              className="flex flex-col items-center gap-16 text-center"
+            >
+              <div className="w-64 h-64 bg-green-500/10 rounded-[80px] flex items-center justify-center border-4 border-green-500/20 shadow-[0_0_60px_rgba(34,197,94,0.15)]">
+                <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ type: 'spring', damping: 10 }}>
+                  <CheckCircle2 size={160} strokeWidth={0.5} className="text-green-400" />
+                </motion.div>
+              </div>
+              <div className="space-y-6">
+                <h2 className="text-8xl font-google-sans font-bold text-white tracking-tighter">Collection Ready</h2>
+                <p className="text-3xl text-white/30 font-medium max-w-2xl">Please retrieve your documents from the exit tray. Have a great day!</p>
+              </div>
+              <button onClick={resetKiosk} className="mt-8 px-16 py-6 bg-white text-blue-900 rounded-[36px] font-bold text-2xl hover:scale-105 active:scale-95 transition-all shadow-2xl">
+                Done
+              </button>
+            </motion.div>
+          )}
+
+          {/* --- ERROR STATE --- */}
+          {status === 'ERROR' && (
+            <motion.div key="error" className="flex flex-col items-center gap-8">
+              <div className="w-32 h-32 bg-red-500/10 rounded-full flex items-center justify-center border-2 border-red-500/20">
+                <AlertTriangle size={64} className="text-red-400 animate-bounce" />
+              </div>
+              <div className="text-center space-y-3">
+                <h2 className="text-4xl font-bold text-white">Verification Failed</h2>
+                <p className="text-xl text-white/30">The code entered is invalid or expired.</p>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </main>
+
+      {/* --- Operator Controls (Hidden/Subtle) --- */}
+      <footer className="fixed bottom-0 left-0 right-0 p-8 pointer-events-none flex justify-end items-end gap-4">
+        <div className="pointer-events-auto flex gap-4">
+          <button
+            onClick={handleForceSync}
+            title="Force Sync"
+            className="p-5 bg-white/5 hover:bg-white/10 rounded-[24px] border border-white/10 text-white/20 transition-all active:rotate-180 hover:text-white/60"
+          >
+            <RefreshCw size={24} />
+          </button>
+          <button
+            onClick={resetKiosk}
+            className="px-8 py-5 bg-red-500/5 hover:bg-red-500/10 rounded-[24px] border border-red-500/10 text-red-500/20 text-xs font-bold uppercase tracking-[0.2em] transition-all hover:text-red-500/60"
+          >
+            Terminal Reset
+          </button>
+        </div>
+      </footer>
+
+      <style>{`
+        .luxury-progress::after {
+          content: '';
+          position: absolute;
+          inset: 0;
+          background: linear-gradient(90deg, transparent, rgba(255,255,255,0.1), transparent);
+          animation: shine 2s infinite;
+        }
+        @keyframes shine {
+          0% { transform: translateX(-100%); }
+          100% { transform: translateX(100%); }
+        }
+        .luxury-progress {
+          position: relative;
+          overflow: hidden;
+        }
+      `}</style>
     </div>
   );
 };

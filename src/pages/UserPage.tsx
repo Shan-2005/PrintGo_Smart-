@@ -132,7 +132,7 @@ const UserPage: React.FC = () => {
         const code = Math.floor(10000 + Math.random() * 90000).toString();
         setReleaseCode(code);
 
-        setCurrentJob({
+        const newJob: PrintJob = {
             id: `PG-${Math.floor(100000 + Math.random() * 900000)}`,
             releaseCode: code,
             file: selectedFile!,
@@ -142,15 +142,21 @@ const UserPage: React.FC = () => {
             status: 'PENDING',
             kioskId: connectedKioskId || undefined,
             flow: printFlow
-        });
+        };
+
+        setCurrentJob(newJob);
 
         // TEST BYPASS: Skip the Payment screen entirely and auto-submit
-        // setCurrentStep(AppStep.PAYMENT);
-        setTimeout(() => handlePaymentSuccess(`dev_skip_${Date.now()}`), 500);
+        // Passing the job object directly TO handlePaymentSuccess fixes the race condition!
+        setTimeout(() => handlePaymentSuccess(undefined, newJob), 500);
     };
 
-    const handlePaymentSuccess = async (paymentId?: string) => {
-        if (!currentJob) return;
+    const handlePaymentSuccess = async (paymentId?: string, jobOverride?: PrintJob) => {
+        const job = jobOverride || currentJob;
+        if (!job) {
+            console.error("Payment Success but no Job data found!");
+            return;
+        }
 
         try {
             const dbId = import.meta.env.VITE_APPWRITE_DATABASE_ID;
@@ -160,12 +166,12 @@ const UserPage: React.FC = () => {
             const bucketId = import.meta.env.VITE_APPWRITE_BUCKET_ID;
             let fileId = null;
 
-            if (currentJob.file && currentJob.file.file && bucketId) {
+            if (job.file && job.file.file && bucketId) {
                 try {
                     const response = await storage.createFile(
                         bucketId,
                         ID.unique(),
-                        currentJob.file.file
+                        job.file.file
                     );
                     fileId = response.$id;
                     console.log("File uploaded:", fileId);
@@ -178,33 +184,30 @@ const UserPage: React.FC = () => {
 
             // Prepare payload
             const fileDataObj = {
-                ...currentJob.file,
+                ...job.file,
                 fileId: fileId // Add fileId to metadata
             };
 
             const payload = {
-                kioskId: connectedKioskId,
+                kioskId: job.kioskId || connectedKioskId,
                 fileData: JSON.stringify(fileDataObj),
-                settings: JSON.stringify(currentJob.settings),
-                status: printFlow === PrintFlow.DIRECT ? 'QUEUED' : 'PENDING',
-                releaseCode: currentJob.releaseCode,
-                amount: currentJob.amount,
-                timestamp: currentJob.timestamp
+                settings: JSON.stringify(job.settings),
+                status: job.flow === PrintFlow.DIRECT ? 'QUEUED' : 'PENDING',
+                releaseCode: job.releaseCode,
+                amount: job.amount,
+                timestamp: job.timestamp
             };
 
             // Create Document in Appwrite
-            // (paymentId removed to prevent schema validation failure)
-
             await databases.createDocument(dbId, collId, ID.unique(), payload, [
                 Permission.read(Role.any()),
                 Permission.update(Role.any()),
                 Permission.delete(Role.any())
             ]);
 
-            if (printFlow === PrintFlow.DIRECT && connectedKioskId) {
-                // For Direct flow, we still rely on the subscription on the other end
-                // We don't strictly *need* localStorage commands anymore if the Kiosk listens to Appwrite!
-                // But for now, let's keep the UI flow SAME.
+            console.log("Job Document Created:", job.releaseCode);
+
+            if (job.flow === PrintFlow.DIRECT && job.kioskId) {
                 setCurrentStep(AppStep.PRINTING);
             } else {
                 // Cloud flow

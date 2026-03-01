@@ -5,6 +5,8 @@ const path = require('path');
 const ptp = require('pdf-to-printer');
 const https = require('https');
 
+const { PDFDocument } = require('pdf-lib');
+
 // Init SDK (Server SDK)
 const client = new sdk.Client();
 const databases = new sdk.Databases(client);
@@ -13,8 +15,6 @@ const storage = new sdk.Storage(client);
 client
     .setEndpoint(process.env.VITE_APPWRITE_ENDPOINT)
     .setProject(process.env.VITE_APPWRITE_PROJECT_ID);
-// Note: If you have an API Key, set it here. For now, we assume public/JWT access or public permissions.
-// .setKey('YOUR_API_KEY'); 
 
 const DB_ID = process.env.VITE_APPWRITE_DATABASE_ID;
 const COLL_ID = process.env.VITE_APPWRITE_COLLECTION_ID;
@@ -23,14 +23,20 @@ const BUCKET_ID = process.env.VITE_APPWRITE_BUCKET_ID;
 console.log('🖨️  Print Agent Started (Polling Mode)...');
 console.log(`Target: ${process.env.VITE_APPWRITE_ENDPOINT}`);
 
+let isProcessing = false;
+
 async function checkJobs() {
+    if (isProcessing) return;
+    isProcessing = true;
+
     try {
         // List documents with status 'QUEUED' (Ready to Print)
         const response = await databases.listDocuments(
             DB_ID,
             COLL_ID,
             [
-                sdk.Query.equal('status', 'QUEUED')
+                sdk.Query.equal('status', 'QUEUED'),
+                sdk.Query.limit(1) // Only take one at a time
             ]
         );
 
@@ -41,19 +47,17 @@ async function checkJobs() {
         }
 
     } catch (error) {
-        // Ignore errors to keep alive
         // console.error("Polling check failed", error.message); 
+    } finally {
+        isProcessing = false;
     }
 }
 
-const { PDFDocument } = require('pdf-lib');
-
-// ... (previous setup)
-
 async function processJob(job) {
+    let printFilePath = null;
+    let fileData = {};
     try {
         // 1. Parse File Data
-        let fileData = {};
         try {
             fileData = JSON.parse(job.fileData);
         } catch (e) {
@@ -75,12 +79,12 @@ async function processJob(job) {
         const buffer = Buffer.from(arrayBuffer);
 
         // Initial path as original file type
-        let printFilePath = path.join(__dirname, `temp_${job.$id}_${fileData.name}`);
+        printFilePath = path.join(__dirname, `temp_${job.$id}_${fileData.name}`);
         fs.writeFileSync(printFilePath, buffer);
 
         // 3. Determine File Type and Convert if needed
         const ext = path.extname(fileData.name).toLowerCase();
-        console.log(`� Processing ${fileData.name} (${ext})...`);
+        console.log(`📄 Processing ${fileData.name} (${ext})...`);
 
         if (['.jpg', '.jpeg', '.png'].includes(ext)) {
             try {
@@ -106,8 +110,11 @@ async function processJob(job) {
                 const newPdfPath = printFilePath + '.pdf';
                 fs.writeFileSync(newPdfPath, pdfBytes);
 
-                // Switch target to the new PDF
+                // Track for cleanup
+                const oldPath = printFilePath;
                 printFilePath = newPdfPath;
+                try { fs.unlinkSync(oldPath); } catch (e) { }
+
                 console.log("✅ Converted to PDF");
             } catch (conversionErr) {
                 console.error("❌ Image Conversion Failed:", conversionErr);
@@ -115,7 +122,6 @@ async function processJob(job) {
             }
         } else if (ext !== '.pdf') {
             console.error("❌ Unsupported file format:", ext);
-            // Warn but try printing anyway? No, ptp only supports PDF.
             throw new Error("Unsupported format");
         }
 
@@ -128,23 +134,14 @@ async function processJob(job) {
             console.warn("Could not parse settings, using defaults");
         }
 
-
         // Build printer options
         const printOptions = {};
-
-        // Color mode: 'BW' or 'COLOR'
         if (settings.colorMode === 'BW') {
-            printOptions.monochrome = true; // Force grayscale/black and white
+            printOptions.monochrome = true;
         }
-
-        // Number of copies
         if (settings.copies && settings.copies > 0) {
             printOptions.copies = settings.copies;
         }
-
-        // Paper size (if supported by pdf-to-printer)
-        // Note: pdf-to-printer may have limited support for paper size
-        // You might need to configure this in your printer settings instead
 
         console.log(`🖨️  Printing with options:`, printOptions);
         await ptp.print(printFilePath, printOptions);
@@ -164,22 +161,20 @@ async function processJob(job) {
             } catch (deleteErr) {
                 console.error("❌ Failed to delete file from Appwrite:", deleteErr.message);
             }
-        }, 120000); // 2 minutes = 120,000 ms
-
-        // 7. Cleanup local temp files
-        setTimeout(() => {
-            // Delete the file we printed
-            try { fs.unlinkSync(printFilePath); } catch (e) { }
-
-            // Delete original download if it was different (converted)
-            const originalPath = path.join(__dirname, `temp_${job.$id}_${fileData.name}`);
-            if (originalPath !== printFilePath) {
-                try { fs.unlinkSync(originalPath); } catch (e) { }
-            }
-        }, 5000);
+        }, 120000);
 
     } catch (err) {
         console.error("Job Failed:", err);
+        await markFailed(job.$id);
+    } finally {
+        // 7. Cleanup local temp files
+        if (printFilePath) {
+            setTimeout(() => {
+                try {
+                    if (fs.existsSync(printFilePath)) fs.unlinkSync(printFilePath);
+                } catch (e) { }
+            }, 5000);
+        }
     }
 }
 
@@ -187,39 +182,6 @@ async function markFailed(docId) {
     try {
         await databases.updateDocument(DB_ID, COLL_ID, docId, { status: 'ERROR' });
     } catch (e) { }
-}
-
-let isProcessing = false;
-
-async function checkJobs() {
-    if (isProcessing) return;
-    isProcessing = true;
-
-    try {
-        // List documents with status 'QUEUED' (Ready to Print)
-        const response = await databases.listDocuments(
-            DB_ID,
-            COLL_ID,
-            [
-                sdk.Query.equal('status', 'QUEUED'),
-                sdk.Query.limit(1) // Only take one at a time
-            ]
-        );
-
-        if (response.documents.length > 0) {
-            const job = response.documents[0];
-            console.log(`\n📥 Found Job: ${job.$id}`);
-
-            // Double check status before processing (in case of race conditions)
-            await processJob(job);
-        }
-
-    } catch (error) {
-        // Ignore errors to keep alive
-        // console.error("Polling check failed", error.message); 
-    } finally {
-        isProcessing = false;
-    }
 }
 
 // Poll every 1 second
