@@ -68,9 +68,31 @@ const KioskScreen: React.FC = () => {
       };
     } catch (err) {
       console.error("Subscription Error:", err);
-      return () => { };
     }
-  }, []);
+
+    // Fallback: Check localStorage periodically in case Realtime socket fails
+    const fallbackInterval = setInterval(() => {
+      if (kioskStatus === 'IDLE') {
+        const localStatus = localStorage.getItem(`kiosk_status_${kioskId}`);
+        if (localStatus) {
+          try {
+            const parsed = JSON.parse(localStatus);
+            if (parsed.status === 'CONNECTED') {
+              console.log("Fallback: Handshake found in localStorage!");
+              setConnectedUser(parsed.userName || 'User');
+              setKioskStatus('CONNECTED');
+            }
+          } catch (e) {
+            // Ignore parse errors
+          }
+        }
+      }
+    }, 2000);
+
+    return () => {
+      clearInterval(fallbackInterval);
+    };
+  }, [kioskStatus]);
 
   const handleKeyPress = (num: string) => {
     if (inputCode.length < 5) setInputCode(prev => prev + num);
