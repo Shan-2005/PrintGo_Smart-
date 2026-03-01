@@ -123,7 +123,7 @@ const UserPage: React.FC = () => {
         setCurrentStep(AppStep.PAYMENT);
     };
 
-    const handlePaymentSuccess = async () => {
+    const handlePaymentSuccess = async (paymentId?: string) => {
         if (!currentJob) return;
 
         try {
@@ -167,6 +167,9 @@ const UserPage: React.FC = () => {
             };
 
             // Create Document in Appwrite
+            if (paymentId) {
+                (payload as any).paymentId = paymentId;
+            }
             await databases.createDocument(dbId, collId, 'unique()', payload);
 
             if (printFlow === PrintFlow.DIRECT && connectedKioskId) {
@@ -261,7 +264,7 @@ const UserPage: React.FC = () => {
                             {currentStep === AppStep.CONNECT && <ConnectScreen onConnect={handleConnect} onSkip={handleSkipConnect} />}
                             {currentStep === AppStep.UPLOAD && <UploadScreen onFileSelect={handleFileSelect} />}
                             {currentStep === AppStep.OPTIONS && selectedFile && <OptionsScreen file={selectedFile} initialSettings={settings} onProceed={handleProceedToPayment} onBack={() => setCurrentStep(AppStep.UPLOAD)} />}
-                            {currentStep === AppStep.PAYMENT && <PaymentScreen settings={settings} onPaymentSuccess={handlePaymentSuccess} onBack={() => setCurrentStep(AppStep.OPTIONS)} />}
+                            {currentStep === AppStep.PAYMENT && <PaymentScreen settings={settings} amount={currentJob?.amount || '0'} onPaymentSuccess={handlePaymentSuccess} onBack={() => setCurrentStep(AppStep.OPTIONS)} />}
                             {currentStep === AppStep.CODE_READY && <CodeReadyScreen code={releaseCode} onStartPrint={() => setCurrentStep(AppStep.PRINTING)} />}
                             {currentStep === AppStep.PRINTING && <PrintingScreen onComplete={handlePrintComplete} />}
                             {currentStep === AppStep.SUCCESS && <SuccessScreen history={history} onReset={resetApp} />}

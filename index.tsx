@@ -1,7 +1,8 @@
 
 import React from 'react';
 import ReactDOM from 'react-dom/client';
-import App from './App';
+import './styles.css';
+import App from './AppRoot';
 
 const rootElement = document.getElementById('root');
 if (!rootElement) {
@@ -19,13 +20,13 @@ window.addEventListener('error', (event) => {
 });
 
 window.addEventListener('unhandledrejection', (event) => {
-    const errorDiv = document.createElement('div');
-    errorDiv.style.color = 'red';
-    errorDiv.style.padding = '20px';
-    errorDiv.style.fontSize = '20px';
-    errorDiv.style.whiteSpace = 'pre-wrap';
-    errorDiv.textContent = `Promise Rejection: ${event.reason}`;
-    document.body.prepend(errorDiv);
+  const errorDiv = document.createElement('div');
+  errorDiv.style.color = 'red';
+  errorDiv.style.padding = '20px';
+  errorDiv.style.fontSize = '20px';
+  errorDiv.style.whiteSpace = 'pre-wrap';
+  errorDiv.textContent = `Promise Rejection: ${event.reason}`;
+  document.body.prepend(errorDiv);
 });
 
 const root = ReactDOM.createRoot(rootElement);

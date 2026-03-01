@@ -46,6 +46,12 @@ export interface FileData {
   file?: File; // The actual file object for uploading
 }
 
+export interface PaymentResult {
+  razorpay_order_id: string;
+  razorpay_payment_id: string;
+  razorpay_signature: string;
+}
+
 export interface PrintJob {
   id: string;
   releaseCode?: string;
@@ -56,6 +62,7 @@ export interface PrintJob {
   status: 'PENDING' | 'COMPLETED' | 'PRINTING' | 'CONNECTED';
   kioskId?: string;
   flow: PrintFlow;
+  paymentId?: string;
 }
 
 export interface PrintTransaction extends PrintJob {

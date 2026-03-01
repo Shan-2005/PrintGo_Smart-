@@ -26,3 +26,9 @@ dist-ssr
 # Print Agent Temp Files
 print-agent/temp_*
 *.pdf
+
+# Environment files (API keys, secrets)
+.env
+.env.local
+.env.production
+print-agent/.env
