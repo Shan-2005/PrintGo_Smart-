@@ -27,7 +27,7 @@ const KioskScreen: React.FC = () => {
         [`databases.${dbId}.collections.${collId}.documents`],
         (response) => {
           console.log("Realtime Event Received:", response);
-          if (response.events.includes('databases.*.collections.*.documents.*.create')) {
+          if (response.events.some(e => e.includes('.create') || e.includes('.update'))) {
             const job = response.payload as any; // Type assertion needed or precise type
             console.log("New Document Created:", job);
 
