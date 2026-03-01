@@ -170,16 +170,16 @@ const ConnectScreen: React.FC<ConnectScreenProps> = ({ onConnect, onSkip }) => {
               {/* Cloud Print Option */}
               <button
                 onClick={onSkip}
-                className="group relative flex flex-col items-center p-6 bg-white border border-gray-100 rounded-2xl shadow-sm hover:shadow-md transition-all active:scale-[0.98]"
+                className="group relative flex flex-col items-center p-6 bg-red-50 border border-red-200 rounded-2xl shadow-sm hover:shadow-md transition-all active:scale-[0.98]"
               >
-                <div className="w-12 h-12 bg-gray-100 rounded-xl flex items-center justify-center mb-3 text-gray-600">
+                <div className="w-12 h-12 bg-red-100 rounded-xl flex items-center justify-center mb-3 text-red-600">
                   <Cloud size={24} />
                 </div>
-                <h3 className="font-semibold text-gray-900 mb-1">Cloud Print</h3>
-                <p className="text-xs text-gray-500 text-center mb-4">Upload now and get a release code to use at any kiosk later.</p>
+                <h3 className="font-semibold text-red-900 mb-1">DEV BYPASS KIOSK 102</h3>
+                <p className="text-xs text-red-500 text-center mb-4">Skip the handshake and directly test the Kiosk 102 upload and payment flow.</p>
 
-                <div className="flex items-center gap-2 text-sm font-medium text-gray-600 group-hover:text-gray-900">
-                  Skip to Upload <ArrowRight size={16} />
+                <div className="flex items-center gap-2 text-sm font-bold text-red-600 group-hover:text-red-900 uppercase">
+                  Force Next Step <ArrowRight size={16} />
                 </div>
               </button>
             </motion.div>
