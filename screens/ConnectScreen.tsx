@@ -19,8 +19,10 @@ const ConnectScreen: React.FC<ConnectScreenProps> = ({ onConnect, onSkip }) => {
         // result connects to: http://localhost:5173/app?connect=102
         const url = new URL(result);
         const kioskId = url.searchParams.get('connect');
+        console.log("Scanned QR result:", result, "Parsed Kiosk ID:", kioskId);
 
         if (kioskId) {
+          console.log("Found valid Kiosk ID in URL, connecting to:", kioskId);
           onConnect(kioskId);
           setIsScanning(false);
         } else {
