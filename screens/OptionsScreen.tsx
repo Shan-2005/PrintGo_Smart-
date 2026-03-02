@@ -167,8 +167,17 @@ const OptionsScreen: React.FC<OptionsScreenProps> = ({ file, initialSettings, on
               onClick={() => onProceed(settings)}
               className="w-full py-5 px-6 bg-[#005fb0] text-white rounded-full font-google-sans font-bold text-lg hover:bg-[#004a8a] transition-all flex items-center justify-center gap-3 m3-button-shadow group"
             >
-              <CreditCard size={22} className="group-hover:scale-110 transition-transform" />
-              Pay with Checkout
+              {import.meta.env.VITE_SKIP_PAYMENT === 'true' ? (
+                <>
+                  <Sparkles size={22} className="group-hover:scale-110 transition-transform" />
+                  Proceed to Print (Test Mode)
+                </>
+              ) : (
+                <>
+                  <CreditCard size={22} className="group-hover:scale-110 transition-transform" />
+                  Pay with Checkout
+                </>
+              )}
             </button>
           </motion.div>
 
@@ -182,8 +191,17 @@ const OptionsScreen: React.FC<OptionsScreenProps> = ({ file, initialSettings, on
               onClick={() => onProceed(settings)}
               className="flex-1 py-4 px-6 bg-[#005fb0] text-white rounded-2xl font-google-sans font-bold text-sm flex items-center justify-center gap-2 shadow-lg shadow-blue-100"
             >
-              <CreditCard size={18} />
-              Pay Now
+              {import.meta.env.VITE_SKIP_PAYMENT === 'true' ? (
+                <>
+                  <Sparkles size={18} />
+                  Print Now
+                </>
+              ) : (
+                <>
+                  <CreditCard size={18} />
+                  Pay Now
+                </>
+              )}
             </button>
           </div>
         </div>
