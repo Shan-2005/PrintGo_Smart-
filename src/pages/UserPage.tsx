@@ -13,6 +13,7 @@ import PaymentScreen from '@/screens/PaymentScreen';
 import CodeReadyScreen from '@/screens/CodeReadyScreen';
 import PrintingScreen from '@/screens/PrintingScreen';
 import SuccessScreen from '@/screens/SuccessScreen';
+import { IS_TEST_MODE } from '@/src/constants';
 
 const UserPage: React.FC = () => {
     const navigate = useNavigate();
@@ -144,8 +145,7 @@ const UserPage: React.FC = () => {
         setCurrentJob(newJob);
 
         // Bypass payment screen if flag is set
-        const skipPayment = import.meta.env.VITE_SKIP_PAYMENT === 'true';
-        if (skipPayment) {
+        if (IS_TEST_MODE) {
             console.log("Test Mode: Skipping Payment Screen UI");
             handlePaymentSuccess(undefined, newJob);
         } else {
