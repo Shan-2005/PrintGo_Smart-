@@ -34,7 +34,8 @@ const KioskScreen: React.FC = () => {
   const [inputCode, setInputCode] = useState('');
 
   // --- Refs for Synchronization ---
-  const lastProcessedDocId = useRef<string | null>(null);
+  // --- Refs for Synchronization ---
+  const lastProcessedStateKey = useRef<string | null>(null);
   const isInitialBoot = useRef(true);
   const syncTimer = useRef<NodeJS.Timeout | null>(null);
   const progressTimer = useRef<NodeJS.Timeout | null>(null);
@@ -56,8 +57,9 @@ const KioskScreen: React.FC = () => {
   }, [addLog]);
 
   const handleJobReceived = useCallback((doc: any) => {
-    if (doc.$id === lastProcessedDocId.current) return;
-    lastProcessedDocId.current = doc.$id;
+    const stateKey = `${doc.$id}_${doc.status}`;
+    if (stateKey === lastProcessedStateKey.current) return;
+    lastProcessedStateKey.current = stateKey;
 
     addLog(`Incoming Action: ${doc.status}`);
 
@@ -112,13 +114,14 @@ const KioskScreen: React.FC = () => {
           const latestDoc = response.documents[0];
 
           if (isInitialBoot.current) {
-            lastProcessedDocId.current = latestDoc.$id;
+            lastProcessedStateKey.current = `${latestDoc.$id}_${latestDoc.status}`;
             isInitialBoot.current = false;
-            addLog(`Baseline set: ${latestDoc.$id}`);
+            addLog(`Baseline set: ${lastProcessedStateKey.current}`);
             return;
           }
 
-          if (latestDoc.$id !== lastProcessedDocId.current) {
+          const stateKey = `${latestDoc.$id}_${latestDoc.status}`;
+          if (stateKey !== lastProcessedStateKey.current) {
             handleJobReceived(latestDoc);
           }
         } else {
