@@ -32,6 +32,16 @@ export default async function handler(req, res) {
 
         const key_id = process.env.RAZORPAY_KEY_ID || process.env.VITE_RAZORPAY_KEY_ID;
         const key_secret = process.env.RAZORPAY_KEY_SECRET;
+        const skipPayment = process.env.VITE_SKIP_PAYMENT === 'true';
+
+        if (skipPayment) {
+            console.log('Skipping Razorpay order creation (test mode)');
+            return res.status(200).json({
+                orderId: `mock_order_${Date.now()}`,
+                amount: Math.round(amount * 100),
+                currency: currency,
+            });
+        }
 
         if (!key_id || !key_secret) {
             console.error('CRITICAL: Razorpay keys are missing in Vercel environment variables.');

@@ -16,6 +16,16 @@ export default async function handler(req, res) {
 
     try {
         const { razorpay_order_id, razorpay_payment_id, razorpay_signature } = req.body;
+        const skipPayment = process.env.VITE_SKIP_PAYMENT === 'true';
+
+        if (skipPayment) {
+            console.log('Skipping Razorpay signature verification (test mode)');
+            return res.status(200).json({
+                verified: true,
+                paymentId: razorpay_payment_id || `mock_pay_${Date.now()}`,
+                orderId: razorpay_order_id || `mock_order_${Date.now()}`,
+            });
+        }
 
         if (!razorpay_order_id || !razorpay_payment_id || !razorpay_signature) {
             return res.status(400).json({ error: 'Missing payment details', verified: false });

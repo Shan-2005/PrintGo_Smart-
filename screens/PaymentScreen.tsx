@@ -28,6 +28,20 @@ const PaymentScreen: React.FC<PaymentScreenProps> = ({ settings, amount, onPayme
     setErrorMessage('');
 
     try {
+      // 0. Check for skip payment flag
+      const skipPayment = import.meta.env.VITE_SKIP_PAYMENT === 'true';
+
+      if (skipPayment) {
+        console.log('Test Mode: Bypassing Razorpay checkout');
+        setPaymentState('VERIFYING');
+        // Slight delay for UX
+        await new Promise(resolve => setTimeout(resolve, 1000));
+
+        onPaymentSuccess(`test_pay_${Date.now()}`);
+        setPaymentState('SUCCESS');
+        return;
+      }
+
       // 1. Create Order via our API
       const response = await fetch('/api/create-order', {
         method: 'POST',
