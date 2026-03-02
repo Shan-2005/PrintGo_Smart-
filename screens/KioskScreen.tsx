@@ -436,33 +436,33 @@ const KioskScreen: React.FC = () => {
                 animate={{ opacity: 1, y: 0 }}
                 className="w-full max-w-xl flex flex-col gap-10"
               >
-                <div className="bg-white/5 backdrop-blur-3xl p-16 rounded-[64px] border border-white/10 shadow-2xl">
-                  <h3 className="text-center text-white/40 font-black uppercase tracking-[0.4em] text-xs mb-12">Enter Release Code</h3>
-                  <div className="flex justify-center gap-5 mb-16">
+                <div className="bg-white/5 backdrop-blur-3xl p-6 rounded-[40px] border border-white/10 shadow-2xl">
+                  <h3 className="text-center text-white/40 font-black uppercase tracking-[0.4em] text-[10px] mb-6">Enter Release Code</h3>
+                  <div className="flex justify-center gap-3 mb-8">
                     {[...Array(5)].map((_, i) => (
-                      <div key={i} className="w-20 h-28 bg-[#000d1a] border-2 border-white/10 rounded-3xl flex items-center justify-center text-6xl font-google-sans font-bold text-blue-300 shadow-inner">
+                      <div key={i} className="w-14 h-20 bg-[#000d1a] border-2 border-white/10 rounded-xl flex items-center justify-center text-4xl font-google-sans font-bold text-blue-300 shadow-inner">
                         {inputCode[i] || ''}
                       </div>
                     ))}
                   </div>
-                  <div className="grid grid-cols-3 gap-5">
+                  <div className="grid grid-cols-3 gap-3">
                     {[1, 2, 3, 4, 5, 6, 7, 8, 9].map(n => (
                       <button
                         key={n}
                         onClick={() => inputCode.length < 5 && setInputCode(p => p + n)}
-                        className="h-24 bg-white/5 rounded-[32px] text-4xl font-bold text-white hover:bg-white/10 active:scale-90 transition-all border border-white/5"
+                        className="h-16 bg-white/5 rounded-xl text-2xl font-bold text-white hover:bg-white/10 active:scale-90 transition-all border border-white/5"
                       >
                         {n}
                       </button>
                     ))}
-                    <button onClick={resetKiosk} className="h-24 bg-red-500/10 rounded-[32px] text-red-500 flex items-center justify-center hover:bg-red-500/20 active:scale-90 transition-all border border-red-500/10"><XCircle size={32} /></button>
-                    <button onClick={() => inputCode.length < 5 && setInputCode(p => p + '0')} className="h-24 bg-white/5 rounded-[32px] text-4xl font-bold text-white hover:bg-white/10 border border-white/5">0</button>
+                    <button onClick={resetKiosk} className="h-16 bg-red-500/10 rounded-xl text-red-500 flex items-center justify-center hover:bg-red-500/20 active:scale-90 transition-all border border-red-500/10"><XCircle size={24} /></button>
+                    <button onClick={() => inputCode.length < 5 && setInputCode(p => p + '0')} className="h-16 bg-white/5 rounded-xl text-2xl font-bold text-white hover:bg-white/10 border border-white/5">0</button>
                     <button
                       onClick={handleManualEntry}
                       disabled={inputCode.length < 5}
-                      className="h-24 bg-blue-600 rounded-[32px] text-white flex items-center justify-center disabled:opacity-20 active:scale-90 shadow-xl shadow-blue-600/30 transition-all"
+                      className="h-16 bg-blue-600 rounded-xl text-white flex items-center justify-center disabled:opacity-20 active:scale-90 shadow-xl shadow-blue-600/30 transition-all"
                     >
-                      <CornerDownLeft size={36} />
+                      <CornerDownLeft size={28} />
                     </button>
                   </div>
                 </div>
