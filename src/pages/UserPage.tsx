@@ -142,7 +142,15 @@ const UserPage: React.FC = () => {
 
         console.log("Proceeding to payment for job:", newJob.id);
         setCurrentJob(newJob);
-        setCurrentStep(AppStep.PAYMENT);
+
+        // Bypass payment screen if flag is set
+        const skipPayment = import.meta.env.VITE_SKIP_PAYMENT === 'true';
+        if (skipPayment) {
+            console.log("Test Mode: Skipping Payment Screen UI");
+            handlePaymentSuccess(undefined, newJob);
+        } else {
+            setCurrentStep(AppStep.PAYMENT);
+        }
     };
 
     const handlePaymentSuccess = async (paymentId?: string, jobOverride?: PrintJob) => {
