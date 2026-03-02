@@ -36,6 +36,16 @@ const UserPage: React.FC = () => {
     const [searchParams] = useSearchParams();
 
     useEffect(() => {
+        let timer: NodeJS.Timeout;
+        if (currentStep === AppStep.SUCCESS) {
+            timer = setTimeout(() => {
+                window.location.reload();
+            }, 30000); // 30 seconds
+        }
+        return () => clearTimeout(timer);
+    }, [currentStep]);
+
+    useEffect(() => {
         const projectId = import.meta.env.VITE_APPWRITE_PROJECT_ID;
         const endpoint = import.meta.env.VITE_APPWRITE_ENDPOINT;
         if (projectId && endpoint) {
@@ -163,7 +173,6 @@ const UserPage: React.FC = () => {
         try {
             const dbId = import.meta.env.VITE_APPWRITE_DATABASE_ID;
             const collId = import.meta.env.VITE_APPWRITE_COLLECTION_ID;
-
             // Upload File to Storage
             const bucketId = import.meta.env.VITE_APPWRITE_BUCKET_ID;
             let fileId = null;

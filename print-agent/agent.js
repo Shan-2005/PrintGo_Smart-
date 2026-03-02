@@ -43,6 +43,12 @@ async function checkJobs() {
         if (response.documents.length > 0) {
             const job = response.documents[0];
             console.log(`\n📥 Found Job: ${job.$id}`);
+
+            // IMMEDIATELY update status to 'PRINTING' to prevent duplicate processing
+            await databases.updateDocument(DB_ID, COLL_ID, job.$id, {
+                status: 'PRINTING'
+            });
+
             await processJob(job);
         }
 
@@ -98,12 +104,26 @@ async function processJob(job) {
                     image = await pdfDoc.embedJpg(buffer);
                 }
 
-                const page = pdfDoc.addPage([image.width, image.height]);
+                // Standard A4 size in points (72 points per inch)
+                const PAGE_WIDTH = 595;
+                const PAGE_HEIGHT = 842;
+
+                const page = pdfDoc.addPage([PAGE_WIDTH, PAGE_HEIGHT]);
+
+                // Calculate scaling to fit page while maintaining aspect ratio
+                const scale = Math.min(PAGE_WIDTH / image.width, PAGE_HEIGHT / image.height);
+                const drawWidth = image.width * scale;
+                const drawHeight = image.height * scale;
+
+                // Center the image
+                const x = (PAGE_WIDTH - drawWidth) / 2;
+                const y = (PAGE_HEIGHT - drawHeight) / 2;
+
                 page.drawImage(image, {
-                    x: 0,
-                    y: 0,
-                    width: image.width,
-                    height: image.height,
+                    x: x,
+                    y: y,
+                    width: drawWidth,
+                    height: drawHeight,
                 });
 
                 const pdfBytes = await pdfDoc.save();
