@@ -42,14 +42,13 @@ async function checkJobs() {
 
         if (response.documents.length > 0) {
             const job = response.documents[0];
-            console.log(`\n📥 Found Job: ${job.$id}`);
+            console.log(`\n📥 Found Job: ${job.$id} - Starting processing...`);
 
-            // IMMEDIATELY update status to 'PRINTING' to prevent duplicate processing
-            await databases.updateDocument(DB_ID, COLL_ID, job.$id, {
-                status: 'PRINTING'
-            });
-
-            await processJob(job);
+            // Start status update and job processing (download/conversion) concurrently to save time
+            await Promise.all([
+                databases.updateDocument(DB_ID, COLL_ID, job.$id, { status: 'PRINTING' }),
+                processJob(job)
+            ]);
         }
 
     } catch (error) {
@@ -204,6 +203,6 @@ async function markFailed(docId) {
     } catch (e) { }
 }
 
-// Poll every 1 second
-setInterval(checkJobs, 1000);
+// Poll every 500ms for faster response
+setInterval(checkJobs, 500);
 checkJobs();
