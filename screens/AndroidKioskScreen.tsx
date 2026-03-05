@@ -405,16 +405,26 @@ const AndroidKioskScreen: React.FC = () => {
                 <AnimatePresence mode="wait">
                     {status === 'IDLE' && (
                         <motion.div key="idle" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex flex-col items-center gap-12">
-                            <h1 className="text-8xl font-bold text-white tracking-tighter text-center">
+                            <h1 className="text-7xl font-bold text-white tracking-tighter text-center">
                                 Ready to <br /><span className="text-blue-400">Print.</span>
                             </h1>
-                            <div className="flex gap-6">
+                            <p className="text-xl text-white/40">Scan the QR code or enter a release code</p>
+                            <div className="flex gap-6 items-center">
                                 <button onClick={() => setStatus('MANUAL_ENTRY')} className="px-10 py-6 bg-white/5 border border-white/10 rounded-full text-white text-xl font-bold flex items-center gap-4 hover:bg-white/10 transition-all">
                                     <Keyboard size={24} /> Enter Code
                                 </button>
                                 <div className="bg-white p-6 rounded-[40px] shadow-2xl">
-                                    <QRCode value={`${PRODUCTION_URL}/app?connect=${KIOSK_ID}`} size={160} />
+                                    {(() => {
+                                        try {
+                                            return <QRCode value={`${PRODUCTION_URL}/app?connect=${KIOSK_ID}`} size={160} />;
+                                        } catch (e) {
+                                            return <div className="w-[160px] h-[160px] flex items-center justify-center text-gray-500 text-sm">QR Error</div>;
+                                        }
+                                    })()}
                                 </div>
+                            </div>
+                            <div className="text-white/20 text-sm font-mono mt-4">
+                                Kiosk {KIOSK_ID} • Polling every {AGENT_POLL_INTERVAL / 1000}s • {debugLogs.length} logs
                             </div>
                         </motion.div>
                     )}
