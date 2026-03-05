@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { Smartphone, Monitor, Wifi, WifiOff } from 'lucide-react';
+import { Smartphone, Monitor, Wifi, WifiOff, RotateCcw, X, AlertCircle } from 'lucide-react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import client, { databases, storage } from '@/src/lib/appwrite';
 import { ID, Permission, Role, Query } from 'appwrite';
@@ -23,6 +23,7 @@ const UserPage: React.FC = () => {
     const [selectedFile, setSelectedFile] = useState<FileData | null>(null);
     const [connectedKioskId, setConnectedKioskId] = useState<string | null>(null);
     const [releaseCode, setReleaseCode] = useState<string>('');
+    const [error, setError] = useState<string | null>(null);
     const [currentJob, setCurrentJob] = useState<PrintJob | null>(null);
     const [history, setHistory] = useState<PrintTransaction[]>([]);
 
@@ -67,6 +68,10 @@ const UserPage: React.FC = () => {
             setIsConnected(true);
         }).catch((e) => {
             console.error(`[UserPage] Appwrite Connection Error after ${Date.now() - startTime}ms:`, e);
+            // Enhanced logging for "Failed to fetch"
+            if (e.message?.includes('fetch') || e.message?.includes('Network')) {
+                console.warn("[UserPage] NETWORK ERROR: Check CORS or SSL certificates on fra.cloud.appwrite.io");
+            }
             setIsConnected(false);
         });
 
@@ -116,7 +121,10 @@ const UserPage: React.FC = () => {
             setCurrentStep(AppStep.UPLOAD);
 
         } catch (e: any) {
-            console.error("Handshake failed", e);
+            console.error("Handshake failed. Full Error:", e);
+            const errorDetails = e.response || e.message || "Unknown error";
+            console.error("Handshake Error Details:", errorDetails);
+            setError(`Connection Failed: ${e.message || 'Server unreachable'}`);
             // Stop progression
             return;
         }
@@ -272,6 +280,21 @@ const UserPage: React.FC = () => {
             </div>
 
             <div className="max-w-5xl mx-auto px-6 py-10 min-h-screen flex flex-col relative">
+                {error && (
+                    <motion.div
+                        initial={{ opacity: 0, y: -20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        className="mb-6 p-4 bg-red-50 border border-red-100 rounded-2xl flex items-center justify-between text-red-600 text-sm font-medium"
+                    >
+                        <div className="flex items-center gap-2">
+                            <RotateCcw size={16} />
+                            {error}
+                        </div>
+                        <button onClick={() => setError(null)} className="p-1 hover:bg-red-100 rounded-full transition-all">
+                            <X size={16} />
+                        </button>
+                    </motion.div>
+                )}
                 <header className="flex items-center justify-between mb-8">
                     <div className="flex items-center gap-4">
                         <motion.div

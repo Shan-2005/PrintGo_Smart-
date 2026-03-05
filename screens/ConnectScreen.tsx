@@ -1,8 +1,8 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { QrCode, Smartphone, ArrowRight, ShieldCheck, Printer, Cloud, X, CheckCircle2 } from 'lucide-react';
-import { Scanner } from '@yudiel/react-qr-scanner';
+import { QrCode, Smartphone, ArrowRight, ShieldCheck, Printer, Cloud, X, CheckCircle2, RotateCcw } from 'lucide-react';
+import { Html5Qrcode } from "html5-qrcode";
 
 interface ConnectScreenProps {
   onConnect: (kioskId: string) => void;
@@ -13,35 +13,94 @@ const ConnectScreen: React.FC<ConnectScreenProps> = ({ onConnect, onSkip }) => {
   const [isScanning, setIsScanning] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const scannerRef = useRef<Html5Qrcode | null>(null);
+  const SCAN_REGION_ID = "qr-reader";
 
-  const handleScan = (result: string) => {
+  useEffect(() => {
+    if (isScanning) {
+      const startScanner = async () => {
+        try {
+          const html5QrCode = new Html5Qrcode(SCAN_REGION_ID);
+          scannerRef.current = html5QrCode;
+
+          const qrCodeSuccessCallback = (decodedText: string) => {
+            handleScan(decodedText);
+          };
+
+          const config = {
+            fps: 10,
+            qrbox: { width: 250, height: 250 },
+            aspectRatio: 1.0
+          };
+
+          await html5QrCode.start(
+            { facingMode: "environment" },
+            config,
+            qrCodeSuccessCallback,
+            undefined // ignore errors
+          );
+        } catch (err: any) {
+          console.error("Failed to start scanner:", err);
+          setError(`Camera Error: ${err.message || 'Check permissions'}`);
+        }
+      };
+
+      startScanner();
+    } else {
+      stopScanner();
+    }
+
+    return () => {
+      stopScanner();
+    };
+  }, [isScanning]);
+
+  const stopScanner = async () => {
+    if (scannerRef.current && scannerRef.current.isScanning) {
+      try {
+        await scannerRef.current.stop();
+        scannerRef.current = null;
+      } catch (err) {
+        console.error("Failed to stop scanner", err);
+      }
+    }
+  };
+
+  const handleScan = async (result: string) => {
     if (result) {
+      await stopScanner();
       try {
         // result connects to: http://localhost:5173/app?connect=102
         const url = new URL(result);
         const kioskId = url.searchParams.get('connect');
-        console.log("Scanned QR result:", result, "Parsed Kiosk ID:", kioskId);
 
         if (kioskId) {
-          console.log("Found valid Kiosk ID in URL, connecting to:", kioskId);
           setIsScanning(false);
           setIsSuccess(true);
           setTimeout(() => {
             onConnect(kioskId);
           }, 1500);
         } else {
-          setError("Invalid QR Code (No Kiosk ID found)");
+          // Try regex if URL parsing fails or param missing
+          const match = result.match(/connect=(\d+)/);
+          if (match && match[1]) {
+            setIsScanning(false);
+            setIsSuccess(true);
+            setTimeout(() => onConnect(match[1]), 1500);
+          } else {
+            setError("QR valid, but no Kiosk ID found");
+            setIsScanning(false);
+          }
         }
       } catch (e) {
-        // Fallback: Maybe the QR is JUST the ID?
-        if (result.length < 10) {
+        // Fallback: Just the ID?
+        if (result.length > 0 && result.length < 15) {
           setIsScanning(false);
           setIsSuccess(true);
-          setTimeout(() => {
-            onConnect(result);
-          }, 1500);
+          setTimeout(() => onConnect(result), 1500);
         } else {
-          setError("Invalid QR Code Format");
+          setError("Invalid QR Format");
+          setIsScanning(false);
         }
       }
     }
@@ -52,46 +111,36 @@ const ConnectScreen: React.FC<ConnectScreenProps> = ({ onConnect, onSkip }) => {
       <AnimatePresence>
         {isScanning ? (
           <motion.div
-            initial={{ opacity: 0, scale: 0.9 }}
-            animate={{ opacity: 1, scale: 1 }}
-            exit={{ opacity: 0, scale: 0.9 }}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
             className="fixed inset-0 z-50 bg-black flex flex-col"
           >
-            <div className="relative flex-1 flex items-center justify-center">
-              <Scanner
-                onScan={(result) => {
-                  if (result && result.length > 0) {
-                    handleScan(result[0].rawValue);
-                  }
-                }}
-                onError={(error) => console.error(error)}
-                components={{
-                  finder: true,
-                }}
-                constraints={{
-                  facingMode: 'environment'
-                }}
-                scanDelay={500}
-                formats={['qr_code', 'rm_qr_code', 'micro_qr_code']}
-                styles={{
-                  container: { width: '100%', height: '100%' }
-                }}
-              />
+            <div className="relative flex-1 flex flex-col items-center justify-center bg-black">
+              {/* HTML5 QR Code Container */}
+              <div id={SCAN_REGION_ID} className="w-full h-full max-h-[70vh] overflow-hidden" />
 
               {/* Overlay UI */}
-              <div className="absolute top-0 left-0 right-0 p-6 flex justify-between items-start bg-gradient-to-b from-black/50 to-transparent">
+              <div className="absolute top-0 left-0 right-0 p-6 flex justify-between items-start bg-gradient-to-b from-black/80 to-transparent z-10">
                 <button
                   onClick={() => setIsScanning(false)}
                   className="bg-white/20 backdrop-blur-md p-2 rounded-full text-white"
                 >
                   <X size={24} />
                 </button>
+                <div className="bg-blue-500/20 backdrop-blur-md px-4 py-2 rounded-full border border-blue-500/30">
+                  <p className="text-blue-300 text-[10px] font-black uppercase tracking-widest">Live Scanner</p>
+                </div>
               </div>
 
-              <div className="absolute bottom-0 left-0 right-0 p-8 bg-gradient-to-t from-black/80 to-transparent text-white text-center">
-                <p className="font-medium text-lg">Scan Kiosk QR Code</p>
-                <p className="text-sm opacity-80 mt-1">Point your camera at the kiosk screen</p>
-                {error && <p className="text-red-400 mt-2 font-medium">{error}</p>}
+              <div className="absolute bottom-0 left-0 right-0 p-8 bg-gradient-to-t from-black/80 to-transparent text-white text-center z-10">
+                <p className="font-google-sans font-bold text-xl uppercase tracking-tighter">Scan QR Code</p>
+                <p className="text-sm opacity-60 mt-2 font-medium">Align the code within the frame</p>
+                {error && (
+                  <div className="mt-4 p-3 bg-red-500/20 border border-red-500/40 rounded-xl text-red-200 text-xs flex items-center justify-center gap-2">
+                    <RotateCcw size={14} /> {error}
+                  </div>
+                )}
               </div>
             </div>
           </motion.div>
