@@ -204,8 +204,7 @@ const UserPage: React.FC = () => {
                 status: job.flow === PrintFlow.DIRECT ? 'QUEUED' : 'PENDING',
                 releaseCode: job.releaseCode,
                 amount: job.amount,
-                timestamp: job.timestamp,
-                flow: job.flow || 'DIRECT'
+                timestamp: job.timestamp
             };
 
             const subTime = Date.now();
