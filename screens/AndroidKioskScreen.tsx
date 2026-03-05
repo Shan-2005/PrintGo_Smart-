@@ -172,7 +172,7 @@ const AndroidKioskScreen: React.FC = () => {
             const fileData = JSON.parse(doc.fileData || '{}');
             const settings = JSON.parse(doc.settings || '{}');
 
-            // 1. Initial State
+            // 1. Set up job state
             const job: PrintJob = {
                 id: doc.$id,
                 file: fileData,
@@ -186,54 +186,78 @@ const AndroidKioskScreen: React.FC = () => {
             };
             setActiveJob(job);
 
-            // 2. Download File Manually (Native Printers need local file:// paths)
+            // 2. Download file as base64
             addLog(`Downloading ${fileData.name}...`);
-            setProgress(30);
+            setProgress(20);
 
             const fileUrl = storage.getFileDownload(
                 import.meta.env.VITE_APPWRITE_BUCKET_ID,
                 fileData.fileId
             ).toString();
 
-            const response = await fetch(fileUrl);
-            const blob = await response.blob();
+            addLog(`Fetch URL: ${fileUrl.substring(0, 60)}...`);
 
-            // Convert Blob to Base64 (Capacitor Filesystem requires base64)
-            const reader = new FileReader();
-            const base64 = await new Promise<string>((resolve) => {
-                reader.onloadend = () => {
-                    const res = reader.result as string;
-                    resolve(res.split(',')[1]); // Strip data:mimetype;base64,
-                };
+            const response = await fetch(fileUrl);
+            if (!response.ok) {
+                throw new Error(`Download failed: ${response.status} ${response.statusText}`);
+            }
+
+            const blob = await response.blob();
+            addLog(`Downloaded: ${blob.size} bytes, type: ${blob.type}`);
+            setProgress(40);
+
+            // Convert Blob to full data URI
+            const dataUri = await new Promise<string>((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onloadend = () => resolve(reader.result as string);
+                reader.onerror = () => reject(new Error('FileReader failed'));
                 reader.readAsDataURL(blob);
             });
 
-            const fileName = `temp_${Date.now()}_${fileData.name}`;
-            const savedFile = await Filesystem.writeFile({
-                path: fileName,
-                data: base64,
-                directory: Directory.Cache
-            });
-
-            addLog(`Local Copy Saved: ${savedFile.uri}`);
+            addLog(`Base64 ready: ${dataUri.substring(0, 50)}...`);
             setProgress(60);
 
-            // 3. Trigger Native Android Print
-            addLog('Invoking Native Android Print Framework...');
+            // 3. Print using Printer.printBase64() — the correct API
+            addLog('Sending to Android Print Service...');
+            const mimeType = fileData.mimeType || blob.type || 'application/pdf';
+            const base64Only = dataUri.split(',')[1]; // Strip "data:mime;base64," prefix
+
             try {
-                await Printer.printFile({
-                    path: savedFile.uri, // This is a real file:/// path
-                    name: fileData.name,
-                    mimeType: fileData.mimeType || 'application/pdf'
+                // Primary: printBase64 — send raw base64 data directly
+                await Printer.printBase64({
+                    name: fileData.name || 'PrintGo Document',
+                    data: base64Only,
+                    mimeType: mimeType
                 });
+                addLog('printBase64 succeeded!');
             } catch (printErr: any) {
-                addLog(`Native Print Failed: ${printErr.message}`);
-                throw printErr;
+                addLog(`printBase64 failed: ${printErr.message}`);
+                // Fallback 1: Save to local file, then printFile
+                addLog('Fallback: local file + printFile...');
+                try {
+                    const fileName = `print_${Date.now()}.pdf`;
+                    const saved = await Filesystem.writeFile({
+                        path: fileName,
+                        data: base64Only,
+                        directory: Directory.Cache
+                    });
+                    addLog(`Local file: ${saved.uri}`);
+                    await Printer.printFile({
+                        path: saved.uri,
+                        name: fileData.name,
+                        mimeType: mimeType
+                    });
+                    addLog('printFile fallback succeeded!');
+                } catch (fallbackErr: any) {
+                    addLog(`All print methods failed: ${fallbackErr.message}`);
+                    throw fallbackErr;
+                }
             }
+
 
             // 4. Update Cloud Status
             setProgress(90);
-            addLog('Update Appwrite: COMPLETED');
+            addLog('Updating Appwrite: COMPLETED');
             await databases.updateDocument(
                 import.meta.env.VITE_APPWRITE_DATABASE_ID,
                 import.meta.env.VITE_APPWRITE_COLLECTION_ID,
@@ -243,7 +267,7 @@ const AndroidKioskScreen: React.FC = () => {
 
             setProgress(100);
             setStatus('COMPLETE');
-            addLog('Native Print Sequence Finished');
+            addLog('Print Sequence Finished!');
 
         } catch (error: any) {
             addLog(`Agent Error: ${error.message}`);
@@ -253,6 +277,7 @@ const AndroidKioskScreen: React.FC = () => {
             isAgentRef.current = false;
             setIsAgentProcessing(false);
         }
+
     };
 
     // --- Appwrite Synchronization Effect (Subscription + Polling) ---
