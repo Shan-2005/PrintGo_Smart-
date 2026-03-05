@@ -217,42 +217,33 @@ const AndroidKioskScreen: React.FC = () => {
             addLog(`Base64 ready: ${dataUri.substring(0, 50)}...`);
             setProgress(60);
 
-            // 3. Print using Printer.printBase64() — the correct API
-            addLog('Sending to Android Print Service...');
+            // 3. Automated Save (Bypassing manual print dialog for now)
+            addLog('Automating: Saving to storage...');
             const mimeType = fileData.mimeType || blob.type || 'application/pdf';
-            const base64Only = dataUri.split(',')[1]; // Strip "data:mime;base64," prefix
+            const base64Only = dataUri.split(',')[1];
 
             try {
-                // Primary: printBase64 — send raw base64 data directly
-                await Printer.printBase64({
-                    name: fileData.name || 'PrintGo Document',
+                // Save to Documents directory (User doesn't need to interact)
+                const fileName = `PrintGo_${Date.now()}_${fileData.name || 'document'}`;
+                const savedFile = await Filesystem.writeFile({
+                    path: fileName,
                     data: base64Only,
-                    mimeType: mimeType
+                    directory: Directory.Documents
                 });
-                addLog('printBase64 succeeded!');
-            } catch (printErr: any) {
-                addLog(`printBase64 failed: ${printErr.message}`);
-                // Fallback 1: Save to local file, then printFile
-                addLog('Fallback: local file + printFile...');
-                try {
-                    const fileName = `print_${Date.now()}.pdf`;
-                    const saved = await Filesystem.writeFile({
-                        path: fileName,
-                        data: base64Only,
-                        directory: Directory.Cache
-                    });
-                    addLog(`Local file: ${saved.uri}`);
-                    await Printer.printFile({
-                        path: saved.uri,
-                        name: fileData.name,
-                        mimeType: mimeType
-                    });
-                    addLog('printFile fallback succeeded!');
-                } catch (fallbackErr: any) {
-                    addLog(`All print methods failed: ${fallbackErr.message}`);
-                    throw fallbackErr;
-                }
+                addLog(`Automated Save Success: ${savedFile.uri}`);
+                setProgress(80);
+            } catch (saveErr: any) {
+                addLog(`Auto-save failed: ${saveErr.message}. Trying Cache...`);
+                // Fallback to Cache if Documents is restricted
+                const fileName = `auto_print_${Date.now()}.pdf`;
+                await Filesystem.writeFile({
+                    path: fileName,
+                    data: base64Only,
+                    directory: Directory.Cache
+                });
+                addLog('Saved to Cache as fallback.');
             }
+
 
 
             // 4. Update Cloud Status
