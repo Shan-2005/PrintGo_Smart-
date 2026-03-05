@@ -20,7 +20,7 @@ import QRCode from 'react-qr-code';
 
 // Configuration Constants
 const KIOSK_ID = '102';
-const SYNC_INTERVAL_MS = 3000;
+const SYNC_INTERVAL_MS = 5000;
 const SESSION_TIMEOUT_MS = 180000; // 3 minutes
 
 type KioskStatus = 'IDLE' | 'CONNECTED' | 'MANUAL_ENTRY' | 'PRINTING' | 'COMPLETE' | 'ERROR';
@@ -39,6 +39,8 @@ const KioskScreen: React.FC = () => {
   const isInitialBoot = useRef(true);
   const syncTimer = useRef<NodeJS.Timeout | null>(null);
   const progressTimer = useRef<NodeJS.Timeout | null>(null);
+  const statusRef = useRef<KioskStatus>(status);
+  useEffect(() => { statusRef.current = status; }, [status]);
 
   // --- Utility: Logging ---
   const addLog = useCallback((msg: string) => {
@@ -63,7 +65,9 @@ const KioskScreen: React.FC = () => {
 
     addLog(`Incoming Action: ${doc.status}`);
 
-    if (doc.status === 'CONNECTED' && status === 'IDLE') {
+    const currentStatus = statusRef.current;
+
+    if (doc.status === 'CONNECTED' && currentStatus === 'IDLE') {
       setConnectedUser('User');
       setStatus('CONNECTED');
     }
@@ -87,11 +91,11 @@ const KioskScreen: React.FC = () => {
         addLog('Error parsing job data');
       }
     }
-    else if (doc.status === 'COMPLETED' && status === 'PRINTING') {
+    else if (doc.status === 'COMPLETED' && currentStatus === 'PRINTING') {
       setStatus('COMPLETE');
       setProgress(100);
     }
-  }, [status, addLog]);
+  }, [addLog]);
 
   // --- Appwrite Synchronization Effect ---
   useEffect(() => {

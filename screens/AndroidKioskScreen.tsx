@@ -25,7 +25,7 @@ import { Filesystem, Directory } from '@capacitor/filesystem';
 
 // Configuration Constants
 const KIOSK_ID = '102';
-const AGENT_POLL_INTERVAL = 1000;
+const AGENT_POLL_INTERVAL = 5000;
 const SESSION_TIMEOUT_MS = 180000;
 const PRODUCTION_URL = 'https://print-go-smart.vercel.app';
 
@@ -44,7 +44,8 @@ const AndroidKioskScreen: React.FC = () => {
     const isInitialBoot = useRef(true);
     const syncTimer = useRef<NodeJS.Timeout | null>(null);
     const [isAgentProcessing, setIsAgentProcessing] = useState(false);
-    const isAgentRef = useRef(false); // Immediate sync check
+    const isAgentRef = useRef(false);
+    useEffect(() => { isAgentRef.current = isAgentProcessing; }, [isAgentProcessing]);
     const [hasPermissions, setHasPermissions] = useState<boolean | null>(null);
 
     // --- Utility: Logging ---
@@ -52,7 +53,22 @@ const AndroidKioskScreen: React.FC = () => {
         console.log(`[Android-Kiosk] ${msg}`);
     }, []);
 
-    // --- Initialization & Permissions ---
+    // --- Initialization: Immediate Splash Hide ---
+    useEffect(() => {
+        const hideSplash = async () => {
+            if (Capacitor.isPluginAvailable('SplashScreen')) {
+                try {
+                    await SplashScreen.hide();
+                    addLog('Splash Screen Hidden (Immediate)');
+                } catch (e) {
+                    addLog(`Splash Hide Error: ${e}`);
+                }
+            }
+        };
+        hideSplash();
+    }, [addLog]);
+
+    // --- Initialization: Permissions & Plugins ---
     useEffect(() => {
         const initApp = async () => {
             if (Capacitor.getPlatform() !== 'android') {
@@ -61,31 +77,29 @@ const AndroidKioskScreen: React.FC = () => {
             }
 
             try {
-                addLog('Requesting Bluetooth Permissions...');
-                // Checking for Bluetooth Connect permission on Android
-                // We use the dynamic Capacitor.Plugins access to avoid crash if not installed
-                const plugins = (window as any).Capacitor?.Plugins;
-                if (plugins?.Permissions) {
-                    await plugins.Permissions.request({ name: 'bluetooth' });
-                }
+                addLog('Requesting Permissions (Non-blocking)...');
+                const requestPerms = async () => {
+                    try {
+                        const plugins = (window as any).Capacitor?.Plugins;
+                        if (plugins?.Permissions) {
+                            await plugins.Permissions.request({ name: 'bluetooth' });
+                            addLog('Permissions Handled');
+                        }
+                    } catch (pErr) {
+                        addLog(`Permission Request Error: ${pErr}`);
+                    }
+                };
+                requestPerms();
 
                 setHasPermissions(true);
-
-                addLog('Initializing Plugins...');
-                // Try to hide splash screen if plugin is available
-                if (Capacitor.isPluginAvailable('SplashScreen')) {
-                    await SplashScreen.hide();
-                    addLog('Splash Screen Hidden');
-                } else {
-                    addLog('Splash Screen plugin not found, skipping hide');
-                }
+                addLog('Plugins Initialized');
             } catch (err) {
                 addLog(`Init Error: ${err}`);
                 setHasPermissions(true);
             }
         };
 
-        const timeout = setTimeout(initApp, 500); // Small delay to ensure everything is loaded
+        const timeout = setTimeout(initApp, 100);
         return () => clearTimeout(timeout);
     }, [addLog]);
 
@@ -99,6 +113,10 @@ const AndroidKioskScreen: React.FC = () => {
         setInputCode('');
     }, [addLog]);
 
+    // --- Refs for State Access (Prevents Effect Churn) ---
+    const statusRef = useRef<KioskStatus>(status);
+    useEffect(() => { statusRef.current = status; }, [status]);
+
     // --- THE ACTION HANDLER ---
     const handleJobReceived = useCallback(async (doc: any) => {
         const stateKey = `${doc.$id}_${doc.status}`;
@@ -107,25 +125,28 @@ const AndroidKioskScreen: React.FC = () => {
 
         addLog(`Incoming Action: ${doc.status}`);
 
+        const currentStatus = statusRef.current;
+        const currentIsAgent = isAgentRef.current;
+
         // Case A: User Connected via QR
-        if (doc.status === 'CONNECTED' && status === 'IDLE') {
+        if (doc.status === 'CONNECTED' && currentStatus === 'IDLE') {
             setConnectedUser('User');
             setStatus('CONNECTED');
         }
         // Case B: Job Ready to Print (Local Agent Takeover)
         else if (doc.status === 'QUEUED' || doc.status === 'PENDING') {
-            if (isAgentProcessing) {
+            if (currentIsAgent) {
                 addLog('Agent busy, skipping auto-trigger');
                 return;
             }
             processJobLocally(doc);
         }
         // Case C: Job Finished (Sync UI)
-        else if (doc.status === 'COMPLETED' && status === 'PRINTING') {
+        else if (doc.status === 'COMPLETED' && currentStatus === 'PRINTING') {
             setStatus('COMPLETE');
             setProgress(100);
         }
-    }, [status, isAgentProcessing, addLog]);
+    }, [addLog]); // Only depends on addLog
 
     // --- "THE AGENT" - Background Job Processing (Native Print) ---
     const processJobLocally = async (doc: any) => {

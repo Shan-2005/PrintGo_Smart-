@@ -10,11 +10,4 @@ client
 export const databases = new Databases(client);
 export const storage = new Storage(client);
 
-// Test connection
-client.ping().then(() => {
-    console.log('Appwrite Connected Successfully');
-}).catch((error) => {
-    console.error('Appwrite Connection Failed:', error);
-});
-
 export default client;
