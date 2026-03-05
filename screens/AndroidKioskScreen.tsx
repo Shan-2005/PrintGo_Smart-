@@ -48,9 +48,13 @@ const AndroidKioskScreen: React.FC = () => {
     useEffect(() => { isAgentRef.current = isAgentProcessing; }, [isAgentProcessing]);
     const [hasPermissions, setHasPermissions] = useState<boolean | null>(null);
 
-    // --- Utility: Logging ---
+    // --- Utility: Logging (Visible on screen for debugging) ---
+    const [debugLogs, setDebugLogs] = useState<string[]>([]);
     const addLog = useCallback((msg: string) => {
+        const timestamp = new Date().toLocaleTimeString();
+        const logEntry = `[${timestamp}] ${msg}`;
         console.log(`[Android-Kiosk] ${msg}`);
+        setDebugLogs(prev => [logEntry, ...prev].slice(0, 15)); // Keep last 15 logs
     }, []);
 
     // --- Initialization: Immediate Splash Hide ---
@@ -502,6 +506,18 @@ const AndroidKioskScreen: React.FC = () => {
                     )}
                 </AnimatePresence>
             </main>
+
+            {/* --- DEBUG OVERLAY (Remove for production) --- */}
+            <div className="fixed bottom-0 left-0 right-0 bg-black/90 border-t border-white/10 p-3 max-h-[200px] overflow-y-auto z-50">
+                <div className="flex items-center gap-3 mb-2">
+                    <div className={`w-2 h-2 rounded-full ${status === 'IDLE' ? 'bg-green-500 animate-pulse' : status === 'PRINTING' ? 'bg-blue-500 animate-pulse' : status === 'ERROR' ? 'bg-red-500' : 'bg-yellow-500'}`} />
+                    <span className="text-[10px] font-mono text-white/60">STATUS: {status} | KIOSK: {KIOSK_ID} | AGENT: {isAgentProcessing ? 'BUSY' : 'IDLE'}</span>
+                    <span className="text-[10px] font-mono text-white/40 ml-auto">BASELINE: {lastProcessedStateKey.current || 'none'}</span>
+                </div>
+                {debugLogs.map((log, i) => (
+                    <div key={i} className="text-[9px] font-mono text-green-400/70 leading-tight">{log}</div>
+                ))}
+            </div>
         </div>
     );
 };
