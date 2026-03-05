@@ -217,31 +217,36 @@ const AndroidKioskScreen: React.FC = () => {
             addLog(`Base64 ready: ${dataUri.substring(0, 50)}...`);
             setProgress(60);
 
-            // 3. Automated Save (Bypassing manual print dialog for now)
-            addLog('Automating: Saving to storage...');
+            // 3. Physical Print (Triggers Android Print Manager)
+            addLog('Triggering Android Print Manager...');
             const mimeType = fileData.mimeType || blob.type || 'application/pdf';
             const base64Only = dataUri.split(',')[1];
 
             try {
-                // Save to Documents directory (User doesn't need to interact)
-                const fileName = `PrintGo_${Date.now()}_${fileData.name || 'document'}`;
-                const savedFile = await Filesystem.writeFile({
-                    path: fileName,
+                // Primary: printBase64 — this will open the native print dialog
+                // The user can then select the HP USB printer from the list
+                await Printer.printBase64({
+                    name: fileData.name || 'PrintGo Document',
                     data: base64Only,
-                    directory: Directory.Documents
+                    mimeType: mimeType
                 });
-                addLog(`Automated Save Success: ${savedFile.uri}`);
+                addLog('Native Print Dialog triggered successfully!');
                 setProgress(80);
-            } catch (saveErr: any) {
-                addLog(`Auto-save failed: ${saveErr.message}. Trying Cache...`);
-                // Fallback to Cache if Documents is restricted
-                const fileName = `auto_print_${Date.now()}.pdf`;
-                await Filesystem.writeFile({
+            } catch (printErr: any) {
+                addLog(`Print Trigger Failed: ${printErr.message}. Trying File Fallback...`);
+                // Fallback: Save to cache and use printFile
+                const fileName = `print_${Date.now()}.pdf`;
+                const saved = await Filesystem.writeFile({
                     path: fileName,
                     data: base64Only,
                     directory: Directory.Cache
                 });
-                addLog('Saved to Cache as fallback.');
+                await Printer.printFile({
+                    path: saved.uri,
+                    name: fileData.name,
+                    mimeType: mimeType
+                });
+                addLog('printFile fallback triggered!');
             }
 
 
