@@ -151,16 +151,11 @@ const UserPage: React.FC = () => {
             flow: printFlow
         };
 
-        console.log("Proceeding to payment for job:", newJob.id);
+        console.log("Proceeding directly to print (Payment Bypassed for Testing):", newJob.id);
         setCurrentJob(newJob);
 
-        // Bypass payment screen if flag is set
-        if (IS_TEST_MODE) {
-            console.log("Test Mode: Skipping Payment Screen UI");
-            handlePaymentSuccess(undefined, newJob);
-        } else {
-            setCurrentStep(AppStep.PAYMENT);
-        }
+        // Always bypass payment screen for current testing phase
+        handlePaymentSuccess(undefined, newJob);
     };
 
     const handlePaymentSuccess = async (paymentId?: string, jobOverride?: PrintJob) => {
