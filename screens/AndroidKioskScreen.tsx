@@ -217,42 +217,37 @@ const AndroidKioskScreen: React.FC = () => {
             addLog(`Base64 ready: ${dataUri.substring(0, 50)}...`);
             setProgress(60);
 
-            // 3. Physical Print (Triggers Android Print Manager)
-            addLog('Preparing for print...');
-            const mimeType = fileData.mimeType || blob.type || 'application/pdf';
+            // 3. Silent Print Queue (Zero-Touch Flow)
+            addLog('Queuing for Silent Print...');
             const base64Only = dataUri.split(',')[1];
 
             try {
-                // Manually save to Cache (better because we have a FileProvider for it)
-                const fileName = `print_${Date.now()}.pdf`;
-                addLog('Saving temporary file to cache...');
-                const saved = await Filesystem.writeFile({
+                // Save to a dedicated PrintQueue folder in Documents
+                // This folder should be monitored by a Silent Print service (RawBT / PrintHand)
+                const timestamp = Date.now();
+                const fileName = `PrintQueue/job_${timestamp}.pdf`;
+
+                addLog(`Saving to: Documents/${fileName}`);
+
+                await Filesystem.writeFile({
                     path: fileName,
                     data: base64Only,
-                    directory: Directory.Cache
+                    directory: Directory.Documents,
+                    recursive: true // Ensures PrintQueue folder is created
                 });
 
-                addLog(`File saved: ${saved.uri}`);
-                addLog('Triggering native print manager...');
-
-                // Use printFile which is often more stable across Android versions
-                await Printer.printFile({
-                    path: saved.uri,
-                    name: fileData.name || 'PrintGo Document',
-                    mimeType: mimeType
-                });
-
-                addLog('Native Print Dialog triggered successfully!');
+                addLog('File queued successfully! Silent service should pick it up.');
                 setProgress(80);
-            } catch (printErr: any) {
-                addLog(`Print Trigger Failed: ${printErr.message}. Trying direct printBase64...`);
-                // Final fallback if printFile fails
+
+                // Important: We DON'T call Printer.printFile here to avoid the OS dialog
+            } catch (queueErr: any) {
+                addLog(`Queue Failed: ${queueErr.message}. Falling back to Manual Print...`);
+                // Fallback: Trigger the native print dialog if silent queuing fails
                 await Printer.printBase64({
                     name: fileData.name || 'PrintGo Document',
                     data: base64Only,
-                    mimeType: mimeType
+                    mimeType: fileData.mimeType || 'application/pdf'
                 });
-                addLog('printBase64 fallback triggered!');
             }
 
 
