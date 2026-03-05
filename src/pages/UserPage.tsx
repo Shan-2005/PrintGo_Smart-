@@ -61,9 +61,12 @@ const UserPage: React.FC = () => {
             }
         }
 
+        const startTime = Date.now();
         client.ping().then(() => {
+            console.log(`[UserPage] Appwrite Connected in ${Date.now() - startTime}ms`);
             setIsConnected(true);
-        }).catch(() => {
+        }).catch((e) => {
+            console.error(`[UserPage] Appwrite Connection Error after ${Date.now() - startTime}ms:`, e);
             setIsConnected(false);
         });
 
@@ -204,6 +207,8 @@ const UserPage: React.FC = () => {
                 timestamp: job.timestamp
             };
 
+            const subTime = Date.now();
+            console.log(`[UserPage] Releasing job document...`);
             // Create Document in Appwrite
             await databases.createDocument(dbId, collId, ID.unique(), payload, [
                 Permission.read(Role.any()),
@@ -211,9 +216,10 @@ const UserPage: React.FC = () => {
                 Permission.delete(Role.any())
             ]);
 
-            console.log("Job Document Created:", job.releaseCode);
+            console.log(`[UserPage] Job Document Created in ${Date.now() - subTime}ms: ${job.releaseCode}`);
 
-            if (job.flow === PrintFlow.DIRECT && job.kioskId) {
+            if (job.flow === PrintFlow.DIRECT && (job.kioskId || connectedKioskId)) {
+                console.log("[UserPage] Transitioning to PRINTING screen");
                 setCurrentStep(AppStep.PRINTING);
             } else {
                 // Cloud flow

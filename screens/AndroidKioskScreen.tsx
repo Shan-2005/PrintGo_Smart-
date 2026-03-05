@@ -119,33 +119,39 @@ const AndroidKioskScreen: React.FC = () => {
 
     // --- THE ACTION HANDLER ---
     const handleJobReceived = useCallback(async (doc: any) => {
+        const startTime = Date.now();
         const stateKey = `${doc.$id}_${doc.status}`;
         if (stateKey === lastProcessedStateKey.current) return;
         lastProcessedStateKey.current = stateKey;
 
-        addLog(`Incoming Action: ${doc.status}`);
+        addLog(`>>> [RECV] Action: ${doc.status} | ID: ${doc.$id}`);
 
         const currentStatus = statusRef.current;
         const currentIsAgent = isAgentRef.current;
 
         // Case A: User Connected via QR
         if (doc.status === 'CONNECTED' && currentStatus === 'IDLE') {
+            addLog(`HANDSHAKE: User connected to Terminal-${KIOSK_ID}`);
             setConnectedUser('User');
             setStatus('CONNECTED');
         }
         // Case B: Job Ready to Print (Local Agent Takeover)
         else if (doc.status === 'QUEUED' || doc.status === 'PENDING') {
             if (currentIsAgent) {
-                addLog('Agent busy, skipping auto-trigger');
+                addLog('AGENT BUSY: Skipping duplicate trigger');
                 return;
             }
+            addLog(`TRIGGER: Native Print process starting for ${doc.$id}`);
             processJobLocally(doc);
         }
         // Case C: Job Finished (Sync UI)
         else if (doc.status === 'COMPLETED' && currentStatus === 'PRINTING') {
+            addLog('SYNC: Job completed on another agent or finished locally');
             setStatus('COMPLETE');
             setProgress(100);
         }
+
+        addLog(`<<< [RECV] Handled in ${Date.now() - startTime}ms`);
     }, [addLog]); // Only depends on addLog
 
     // --- "THE AGENT" - Background Job Processing (Native Print) ---
@@ -251,7 +257,9 @@ const AndroidKioskScreen: React.FC = () => {
         const collId = import.meta.env.VITE_APPWRITE_COLLECTION_ID;
 
         const performSync = async () => {
+            const syncStartTime = Date.now();
             try {
+                // addLog(`SYNC LOOP [${KIOSK_ID}] STARTED...`);
                 const response = await databases.listDocuments(dbId, collId, [
                     Query.equal('kioskId', KIOSK_ID),
                     Query.orderDesc('$createdAt'),
@@ -261,16 +269,25 @@ const AndroidKioskScreen: React.FC = () => {
                 if (response.documents.length > 0) {
                     const doc = response.documents[0];
                     if (isInitialBoot.current) {
-                        lastProcessedStateKey.current = `${doc.$id}_${doc.status}`;
                         isInitialBoot.current = false;
+                        addLog(`INIT: Baseline Job ID ${doc.$id} [${doc.status}]`);
+
+                        // If the job is old but still QUEUED, don't baseline it, process it!
+                        if (doc.status === 'QUEUED' || doc.status === 'PENDING') {
+                            addLog(`INIT: Resuming unfinished job found on boot!`);
+                            handleJobReceived(doc);
+                        } else {
+                            lastProcessedStateKey.current = `${doc.$id}_${doc.status}`;
+                        }
                         return;
                     }
                     handleJobReceived(doc);
                 } else {
                     isInitialBoot.current = false;
                 }
+                // addLog(`SYNC LOOP FINISHED in ${Date.now() - syncStartTime}ms`);
             } catch (err: any) {
-                addLog(`Sync Error: ${err.message}`);
+                addLog(`SYNC ERROR [${Date.now() - syncStartTime}ms]: ${err.message}`);
             }
         };
 
