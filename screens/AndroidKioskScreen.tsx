@@ -25,7 +25,7 @@ import { Filesystem, Directory } from '@capacitor/filesystem';
 
 // Configuration Constants
 const KIOSK_ID = '102';
-const AGENT_POLL_INTERVAL = 5000;
+const AGENT_POLL_INTERVAL = 2000; // Fast polling for Android reliability
 const SESSION_TIMEOUT_MS = 180000;
 const PRODUCTION_URL = 'https://print-go-smart.vercel.app';
 
@@ -259,7 +259,7 @@ const AndroidKioskScreen: React.FC = () => {
         const performSync = async () => {
             const syncStartTime = Date.now();
             try {
-                // addLog(`SYNC LOOP [${KIOSK_ID}] STARTED...`);
+                addLog(`SYNC [${KIOSK_ID}] polling...`);
                 const response = await databases.listDocuments(dbId, collId, [
                     Query.equal('kioskId', KIOSK_ID),
                     Query.orderDesc('$createdAt'),
@@ -285,29 +285,49 @@ const AndroidKioskScreen: React.FC = () => {
                 } else {
                     isInitialBoot.current = false;
                 }
-                // addLog(`SYNC LOOP FINISHED in ${Date.now() - syncStartTime}ms`);
+                addLog(`SYNC OK: ${response.documents.length} docs, latest: ${response.documents[0]?.$id || 'none'} [${response.documents[0]?.status || '-'}]`);
             } catch (err: any) {
                 addLog(`SYNC ERROR [${Date.now() - syncStartTime}ms]: ${err.message}`);
             }
         };
 
-        // 1. Real-time Subscription (Instant Reactivity)
-        const unsubscribe = client.subscribe(
-            [`databases.${dbId}.collections.${collId}.documents`],
-            (response) => {
-                const payload = response.payload as any;
-                if (String(payload.kioskId) === KIOSK_ID) {
-                    handleJobReceived(payload);
+        // 1. Real-time Subscription (with safety delay and retry)
+        let unsubscribe: (() => void) | null = null;
+        let retryCount = 0;
+        const maxRetries = 3;
+
+        const startSubscription = () => {
+            try {
+                unsubscribe = client.subscribe(
+                    [`databases.${dbId}.collections.${collId}.documents`],
+                    (response) => {
+                        const payload = response.payload as any;
+                        if (String(payload.kioskId) === KIOSK_ID) {
+                            handleJobReceived(payload);
+                        }
+                    }
+                );
+                addLog("REALTIME: Subscription active");
+            } catch (err: any) {
+                addLog(`REALTIME ERROR: ${err.message}`);
+                if (retryCount < maxRetries) {
+                    retryCount++;
+                    addLog(`REALTIME: Retrying in ${retryCount * 2}s...`);
+                    setTimeout(startSubscription, retryCount * 2000);
                 }
             }
-        );
+        };
+
+        // Delay subscription to ensure WebSocket handshake is ready
+        const subTimeout = setTimeout(startSubscription, 1500);
 
         // 2. Polling Fallback (1s interval for Android stability)
         const interval = setInterval(performSync, AGENT_POLL_INTERVAL);
         performSync(); // Initial check
 
         return () => {
-            unsubscribe();
+            clearTimeout(subTimeout);
+            if (unsubscribe) unsubscribe();
             clearInterval(interval);
         };
     }, [handleJobReceived, addLog]);

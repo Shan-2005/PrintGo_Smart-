@@ -136,23 +136,43 @@ const KioskScreen: React.FC = () => {
       }
     };
 
-    // 1. Real-time Subscription
-    const unsubscribe = client.subscribe(
-      [`databases.${dbId}.collections.${collId}.documents`],
-      (response) => {
-        const payload = response.payload as any;
-        if (String(payload.kioskId) === KIOSK_ID) {
-          handleJobReceived(payload);
+    // 1. Real-time Subscription (with safety delay and retry)
+    let unsubscribe: (() => void) | null = null;
+    let retryCount = 0;
+    const maxRetries = 3;
+
+    const startSubscription = () => {
+      try {
+        unsubscribe = client.subscribe(
+          [`databases.${dbId}.collections.${collId}.documents`],
+          (response) => {
+            const payload = response.payload as any;
+            if (String(payload.kioskId) === KIOSK_ID) {
+              handleJobReceived(payload);
+            }
+          }
+        );
+        addLog("REALTIME: Subscription active");
+      } catch (err: any) {
+        addLog(`REALTIME ERROR: ${err.message}`);
+        if (retryCount < maxRetries) {
+          retryCount++;
+          addLog(`REALTIME: Retrying in ${retryCount * 2}s...`);
+          setTimeout(startSubscription, retryCount * 2000);
         }
       }
-    );
+    };
+
+    // Delay subscription to ensure WebSocket handshake is ready
+    const subTimeout = setTimeout(startSubscription, 1500);
 
     // 2. Polling Fallback
     syncTimer.current = setInterval(performSync, SYNC_INTERVAL_MS);
     performSync(); // Initial check
 
     return () => {
-      unsubscribe();
+      clearTimeout(subTimeout);
+      if (unsubscribe) unsubscribe();
       if (syncTimer.current) clearInterval(syncTimer.current);
     };
   }, [handleJobReceived, addLog]);
