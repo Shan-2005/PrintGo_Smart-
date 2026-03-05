@@ -218,35 +218,41 @@ const AndroidKioskScreen: React.FC = () => {
             setProgress(60);
 
             // 3. Physical Print (Triggers Android Print Manager)
-            addLog('Triggering Android Print Manager...');
+            addLog('Preparing for print...');
             const mimeType = fileData.mimeType || blob.type || 'application/pdf';
             const base64Only = dataUri.split(',')[1];
 
             try {
-                // Primary: printBase64 — this will open the native print dialog
-                // The user can then select the HP USB printer from the list
-                await Printer.printBase64({
-                    name: fileData.name || 'PrintGo Document',
-                    data: base64Only,
-                    mimeType: mimeType
-                });
-                addLog('Native Print Dialog triggered successfully!');
-                setProgress(80);
-            } catch (printErr: any) {
-                addLog(`Print Trigger Failed: ${printErr.message}. Trying File Fallback...`);
-                // Fallback: Save to cache and use printFile
+                // Manually save to Cache (better because we have a FileProvider for it)
                 const fileName = `print_${Date.now()}.pdf`;
+                addLog('Saving temporary file to cache...');
                 const saved = await Filesystem.writeFile({
                     path: fileName,
                     data: base64Only,
                     directory: Directory.Cache
                 });
+
+                addLog(`File saved: ${saved.uri}`);
+                addLog('Triggering native print manager...');
+
+                // Use printFile which is often more stable across Android versions
                 await Printer.printFile({
                     path: saved.uri,
-                    name: fileData.name,
+                    name: fileData.name || 'PrintGo Document',
                     mimeType: mimeType
                 });
-                addLog('printFile fallback triggered!');
+
+                addLog('Native Print Dialog triggered successfully!');
+                setProgress(80);
+            } catch (printErr: any) {
+                addLog(`Print Trigger Failed: ${printErr.message}. Trying direct printBase64...`);
+                // Final fallback if printFile fails
+                await Printer.printBase64({
+                    name: fileData.name || 'PrintGo Document',
+                    data: base64Only,
+                    mimeType: mimeType
+                });
+                addLog('printBase64 fallback triggered!');
             }
 
 
