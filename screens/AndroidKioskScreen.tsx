@@ -14,7 +14,7 @@ import { SplashScreen } from '@capacitor/splash-screen';
 import { Capacitor, registerPlugin } from '@capacitor/core';
 import { Filesystem, Directory } from '@capacitor/filesystem';
 
-const PrintHand = registerPlugin<any>('PrintHand');
+const NativePrint = registerPlugin<any>('NativePrint');
 
 /**
  * AndroidKioskScreen
@@ -223,8 +223,7 @@ const AndroidKioskScreen: React.FC = () => {
             const base64Only = dataUri.split(',')[1];
 
             try {
-                // Save to a dedicated PrintQueue folder in Documents
-                // This folder should be monitored by a Silent Print service (RawBT / PrintHand) // Legacy comment
+                // Save locally first so the PrintManager InputStream can access it via URI
                 const timestamp = Date.now();
                 const fileName = `PrintQueue/job_${timestamp}.pdf`;
 
@@ -234,21 +233,20 @@ const AndroidKioskScreen: React.FC = () => {
                     path: fileName,
                     data: base64Only,
                     directory: Directory.Documents,
-                    recursive: true // Ensures PrintQueue folder is created
+                    recursive: true
                 });
 
-                addLog('File queued locally. Launching PrintHand...');
+                addLog('File queued locally. Launching Native Print Manager...');
                 setProgress(80);
 
-                // Use our custom plugin to invoke PrintHand directly via Intent
+                // Use our custom plugin to invoke the Android PrintManager directly
                 try {
-                    await PrintHand.printDocument({
-                        uri: writeResult.uri,
-                        mimeType: fileData.mimeType || 'application/pdf'
+                    await NativePrint.printDocument({
+                        uri: writeResult.uri
                     });
-                    addLog('PrintHand Intent sent successfully!');
+                    addLog('Native Print Dialog Opened Successfully!');
                 } catch (intentErr: any) {
-                    addLog(`PrintHand Intent Error: ${intentErr.message}`);
+                    addLog(`Native Print Error: ${intentErr.message}`);
                 }
 
             } catch (queueErr: any) {

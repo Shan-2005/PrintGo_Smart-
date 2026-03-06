@@ -11,7 +11,7 @@ public class MainActivity extends BridgeActivity {
     public void onCreate(Bundle savedInstanceState) {
         setTheme(R.style.AppTheme_NoActionBarLaunch);
         super.onCreate(savedInstanceState);
-        registerPlugin(PrintHandPlugin.class);
+        registerPlugin(NativePrintPlugin.class);
     }
 
     @Override
