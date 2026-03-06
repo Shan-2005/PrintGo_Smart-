@@ -10,10 +10,11 @@ import client, { databases, storage } from '@/src/lib/appwrite';
 import { Query } from 'appwrite';
 import { PrintJob } from '../types';
 import QRCode from 'react-qr-code';
-import { Printer } from '@capgo/capacitor-printer';
 import { SplashScreen } from '@capacitor/splash-screen';
-import { Capacitor } from '@capacitor/core';
+import { Capacitor, registerPlugin } from '@capacitor/core';
 import { Filesystem, Directory } from '@capacitor/filesystem';
+
+const PrintHand = registerPlugin<any>('PrintHand');
 
 /**
  * AndroidKioskScreen
@@ -223,31 +224,35 @@ const AndroidKioskScreen: React.FC = () => {
 
             try {
                 // Save to a dedicated PrintQueue folder in Documents
-                // This folder should be monitored by a Silent Print service (RawBT / PrintHand)
+                // This folder should be monitored by a Silent Print service (RawBT / PrintHand) // Legacy comment
                 const timestamp = Date.now();
                 const fileName = `PrintQueue/job_${timestamp}.pdf`;
 
                 addLog(`Saving to: Documents/${fileName}`);
 
-                await Filesystem.writeFile({
+                const writeResult = await Filesystem.writeFile({
                     path: fileName,
                     data: base64Only,
                     directory: Directory.Documents,
                     recursive: true // Ensures PrintQueue folder is created
                 });
 
-                addLog('File queued successfully! Silent service should pick it up.');
+                addLog('File queued locally. Launching PrintHand...');
                 setProgress(80);
 
-                // Important: We DON'T call Printer.printFile here to avoid the OS dialog
+                // Use our custom plugin to invoke PrintHand directly via Intent
+                try {
+                    await PrintHand.printDocument({
+                        uri: writeResult.uri,
+                        mimeType: fileData.mimeType || 'application/pdf'
+                    });
+                    addLog('PrintHand Intent sent successfully!');
+                } catch (intentErr: any) {
+                    addLog(`PrintHand Intent Error: ${intentErr.message}`);
+                }
+
             } catch (queueErr: any) {
-                addLog(`Queue Failed: ${queueErr.message}. Falling back to Manual Print...`);
-                // Fallback: Trigger the native print dialog if silent queuing fails
-                await Printer.printBase64({
-                    name: fileData.name || 'PrintGo Document',
-                    data: base64Only,
-                    mimeType: fileData.mimeType || 'application/pdf'
-                });
+                addLog(`Queue Failed: ${queueErr.message}.`);
             }
 
 
