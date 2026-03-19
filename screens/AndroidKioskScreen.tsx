@@ -770,6 +770,11 @@ const AndroidKioskScreen: React.FC = () => {
                     }
                 } else {
                     isInitialBoot.current = false;
+                    // Fail-safe: If Kiosk is connected/busy but no documents exist, reset (v5.9.37)
+                    if (statusRef.current !== 'IDLE' && statusRef.current !== 'MANUAL_ENTRY' && statusRef.current !== 'ERROR') {
+                        addLog("SYNC: No active session/job found. Returning to IDLE.");
+                        resetKiosk();
+                    }
                 }
             } catch (err: any) {
                 addLog(`Sync Warning: ${err.message}`);
