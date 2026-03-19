@@ -384,11 +384,10 @@ const AndroidKioskScreen: React.FC = () => {
         const currentStatus = statusRef.current;
         const currentIsAgent = isAgentRef.current;
 
-        // Case 0: Explicit Disconnect Signal (v5.9.33) - HIGH PRIORITY
+        // Case 0: Explicit Disconnect Signal (v5.9.34) - HIGH PRIORITY
         if (doc.status === 'DISCONNECTED') {
-            const isMatch = activeSessionId.current === doc.$id || String(doc.kioskId) === KIOSK_ID;
-            if (isMatch && currentStatus !== 'IDLE') {
-                addLog(`DISCONNECT: Received signal for ID ${doc.$id}. Resetting...`);
+            if (String(doc.kioskId) === KIOSK_ID && currentStatus !== 'IDLE') {
+                addLog(`DISCONNECT: MASTER SWITCH Received for Kiosk ${KIOSK_ID}. Resetting...`);
                 resetKiosk();
                 return;
             }
@@ -801,8 +800,9 @@ const AndroidKioskScreen: React.FC = () => {
                         addLog(`REALTIME: ${isDelete ? 'DELETE' : 'UPDATE'} for Doc ${payload.$id} Status ${payload.status}`);
                         
                         if (isDelete) {
-                            if (activeSessionId.current === payload.$id || String(payload.kioskId) === KIOSK_ID) {
-                                addLog(`REALTIME: Session document deleted. Resetting...`);
+                            // If the deleted document was for this Kiosk, reset.
+                            if (String(payload.kioskId) === KIOSK_ID || activeSessionId.current === payload.$id) {
+                                addLog(`REALTIME: Active session/kiosk document deleted. Resetting...`);
                                 resetKiosk();
                             }
                             return;

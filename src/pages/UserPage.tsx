@@ -300,9 +300,10 @@ const UserPage: React.FC = () => {
             if (sessionDocId) {
                 const dbId = APPWRITE_CONFIG.DATABASE_ID;
                 const collId = APPWRITE_CONFIG.COLLECTION_ID;
-                // Signal DISCONNECTED status to the session document (Master Switch)
+                // Signal DISCONNECTED status (Master Switch)
                 await databases.updateDocument(dbId, collId, sessionDocId, {
-                    status: 'DISCONNECTED'
+                    status: 'DISCONNECTED',
+                    kioskId: connectedKioskId // Explicitly send ID to ensure Kiosk filter matches
                 });
             }
         } catch (e) {
