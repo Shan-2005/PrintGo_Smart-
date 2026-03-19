@@ -744,6 +744,19 @@ const AndroidKioskScreen: React.FC = () => {
 
         const performSync = async () => {
             try {
+                // Fail-safe: If we have an active handshake ID, check for its existence specifically (v5.9.38)
+                if (activeSessionId.current && statusRef.current !== 'IDLE' && statusRef.current !== 'MANUAL_ENTRY') {
+                    try {
+                        await databases.getDocument(dbId, collId, activeSessionId.current);
+                    } catch (e: any) {
+                        if (e.code === 404) {
+                            addLog(`SYNC: Active session/handshake ${activeSessionId.current} deleted. Resetting...`);
+                            resetKiosk();
+                            return;
+                        }
+                    }
+                }
+
                 const response = await databases.listDocuments(
                     dbId,
                     collId,
@@ -770,9 +783,9 @@ const AndroidKioskScreen: React.FC = () => {
                     }
                 } else {
                     isInitialBoot.current = false;
-                    // Fail-safe: If Kiosk is connected/busy but no documents exist, reset (v5.9.37)
+                    // Fail-safe fallback if no records at all exist for this kiosk
                     if (statusRef.current !== 'IDLE' && statusRef.current !== 'MANUAL_ENTRY' && statusRef.current !== 'ERROR') {
-                        addLog("SYNC: No active session/job found. Returning to IDLE.");
+                        addLog("SYNC: Zero records found for Kiosk. Resetting.");
                         resetKiosk();
                     }
                 }
