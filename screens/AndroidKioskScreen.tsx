@@ -384,15 +384,6 @@ const AndroidKioskScreen: React.FC = () => {
         const currentStatus = statusRef.current;
         const currentIsAgent = isAgentRef.current;
 
-        // Case 0: Explicit Disconnect Signal (v5.9.34) - HIGH PRIORITY
-        if (doc.status === 'DISCONNECTED') {
-            if (String(doc.kioskId) === KIOSK_ID && currentStatus !== 'IDLE') {
-                addLog(`DISCONNECT: MASTER SWITCH Received for Kiosk ${KIOSK_ID}. Resetting...`);
-                resetKiosk();
-                return;
-            }
-        }
-
         // Case A: User Connected via QR
         if (doc.status === 'CONNECTED' && currentStatus === 'IDLE') {
             addLog(`HANDSHAKE: User connected. Session ID: ${doc.$id}`);
