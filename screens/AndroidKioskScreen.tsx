@@ -76,6 +76,7 @@ const AndroidKioskScreen: React.FC = () => {
     useEffect(() => { statusRef.current = status; }, [status]);
     const activeJobRef = useRef<PrintJob | null>(activeJob);
     useEffect(() => { activeJobRef.current = activeJob; }, [activeJob]);
+    const activeSessionId = useRef<string | null>(null);
 
     // --- Utility: Logging (Visible on screen for debugging) ---
     const [debugLogs, setDebugLogs] = useState<string[]>([]);
@@ -384,9 +385,17 @@ const AndroidKioskScreen: React.FC = () => {
 
         // Case A: User Connected via QR
         if (doc.status === 'CONNECTED' && currentStatus === 'IDLE') {
-            addLog(`HANDSHAKE: User connected to Terminal-${KIOSK_ID}`);
+            addLog(`HANDSHAKE: User connected. Session ID: ${doc.$id}`);
+            activeSessionId.current = doc.$id;
             setConnectedUser('User');
             setStatus('CONNECTED');
+        }
+        // Case A.1: Explicit Disconnect (v5.9.32)
+        else if (doc.status === 'DISCONNECTED') {
+            if (activeSessionId.current === doc.$id || String(doc.kioskId) === KIOSK_ID) {
+                addLog(`DISCONNECT: Received signal for Session ${doc.$id}`);
+                resetKiosk();
+            }
         }
         // Case B: Job Ready to Print (Local Agent Takeover)
         else if (doc.status === 'QUEUED' || doc.status === 'PENDING') {
@@ -783,7 +792,18 @@ const AndroidKioskScreen: React.FC = () => {
                     [`databases.${dbId}.collections.${collId}.documents`],
                     (response) => {
                         const payload = response.payload as any;
-                        addLog(`REALTIME: Received event for Doc ${payload.$id} Status ${payload.status} Kiosk ${payload.kioskId}`);
+                        const isDelete = response.events.some(e => e.includes('.delete'));
+                        
+                        addLog(`REALTIME: ${isDelete ? 'DELETE' : 'UPDATE'} for Doc ${payload.$id} Status ${payload.status}`);
+                        
+                        if (isDelete) {
+                            if (activeSessionId.current === payload.$id || String(payload.kioskId) === KIOSK_ID) {
+                                addLog(`REALTIME: Session document deleted. Resetting...`);
+                                resetKiosk();
+                            }
+                            return;
+                        }
+
                         if (String(payload.kioskId) === KIOSK_ID) {
                             handleJobReceived(payload);
                         }

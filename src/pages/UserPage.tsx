@@ -300,10 +300,13 @@ const UserPage: React.FC = () => {
             if (sessionDocId) {
                 const dbId = APPWRITE_CONFIG.DATABASE_ID;
                 const collId = APPWRITE_CONFIG.COLLECTION_ID;
-                await databases.deleteDocument(dbId, collId, sessionDocId);
+                // Signal DISCONNECTED status to the session document (Master Switch)
+                await databases.updateDocument(dbId, collId, sessionDocId, {
+                    status: 'DISCONNECTED'
+                });
             }
         } catch (e) {
-            console.error("Session delete failed", e);
+            console.error("Session disconnect signal failed", e);
         }
         resetApp();
         setIsDisconnectModalOpen(false);
