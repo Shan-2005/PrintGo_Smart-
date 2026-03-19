@@ -26,6 +26,8 @@ const UserPage: React.FC = () => {
     const [error, setError] = useState<string | null>(null);
     const [currentJob, setCurrentJob] = useState<PrintJob | null>(null);
     const [history, setHistory] = useState<PrintTransaction[]>([]);
+    const [sessionDocId, setSessionDocId] = useState<string | null>(null);
+    const [isDisconnectModalOpen, setIsDisconnectModalOpen] = useState(false);
 
     const [settings, setSettings] = useState<PrintSettings>({
         colorMode: PrintColorMode.BW,
@@ -74,12 +76,22 @@ const UserPage: React.FC = () => {
             setIsConnected(true);
         }).catch((e) => {
             console.error(`[UserPage] Appwrite Connection Error after ${Date.now() - startTime}ms:`, e);
-            // Enhanced logging for "Failed to fetch"
             if (e.message?.includes('fetch') || e.message?.includes('Network')) {
                 console.warn("[UserPage] NETWORK ERROR: Check CORS or SSL certificates on fra.cloud.appwrite.io");
             }
             setIsConnected(false);
         });
+
+        // RE-HYDRATE SESSION
+        const activeKioskId = localStorage.getItem('active_kiosk_id');
+        const activeSessionId = localStorage.getItem('active_session_doc_id');
+        if (activeKioskId && activeSessionId) {
+            console.log(`[UserPage] Restoring session for Kiosk ${activeKioskId}...`);
+            setConnectedKioskId(activeKioskId);
+            setSessionDocId(activeSessionId);
+            setPrintFlow(PrintFlow.DIRECT);
+            setCurrentStep(AppStep.UPLOAD); // Resume at upload
+        }
 
         const kioskToConnect = searchParams.get('connect');
         if (kioskToConnect) {
@@ -117,6 +129,9 @@ const UserPage: React.FC = () => {
                 Permission.delete(Role.any())
             ]);
             console.log(`[UserPage] Handshake SUCCESS: Document ID ${doc.$id}`);
+            setSessionDocId(doc.$id);
+            localStorage.setItem('active_kiosk_id', kioskId);
+            localStorage.setItem('active_session_doc_id', doc.$id);
 
 
             // Only advance if Appwrite succeeded
@@ -269,12 +284,29 @@ const UserPage: React.FC = () => {
     const resetApp = () => {
         if (connectedKioskId) {
             localStorage.removeItem(`kiosk_status_${connectedKioskId}`);
+            localStorage.removeItem('active_kiosk_id');
+            localStorage.removeItem('active_session_doc_id');
         }
         setSelectedFile(null);
         setCurrentJob(null);
         setConnectedKioskId(null);
+        setSessionDocId(null);
         setPrintFlow(PrintFlow.CLOUD);
         setCurrentStep(AppStep.CONNECT);
+    };
+
+    const handleConfirmDisconnect = async () => {
+        try {
+            if (sessionDocId) {
+                const dbId = APPWRITE_CONFIG.DATABASE_ID;
+                const collId = APPWRITE_CONFIG.COLLECTION_ID;
+                await databases.deleteDocument(dbId, collId, sessionDocId);
+            }
+        } catch (e) {
+            console.error("Session delete failed", e);
+        }
+        resetApp();
+        setIsDisconnectModalOpen(false);
     };
 
     return (
@@ -328,7 +360,7 @@ const UserPage: React.FC = () => {
                     </div>
                     <div className="flex items-center gap-3">
                         {currentStep !== AppStep.CONNECT && printFlow !== PrintFlow.CLOUD && (
-                            <button onClick={resetApp} className="px-4 py-2 text-xs font-bold text-[#44474e] hover:bg-[#f1f3f9] rounded-full transition-all border border-[#e1e2ec]">Disconnect</button>
+                            <button onClick={() => setIsDisconnectModalOpen(true)} className="px-4 py-2 text-xs font-bold text-[#44474e] hover:bg-[#f1f3f9] rounded-full transition-all border border-[#e1e2ec]">Disconnect</button>
                         )}
                     </div>
                 </header>
@@ -346,6 +378,43 @@ const UserPage: React.FC = () => {
                         </motion.div>
                     </AnimatePresence>
                 </main>
+
+                <AnimatePresence>
+                    {isDisconnectModalOpen && (
+                        <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-black/40 backdrop-blur-sm">
+                            <motion.div
+                                initial={{ opacity: 0, scale: 0.9, y: 20 }}
+                                animate={{ opacity: 1, scale: 1, y: 0 }}
+                                exit={{ opacity: 0, scale: 0.9, y: 20 }}
+                                className="bg-white rounded-[40px] p-10 max-w-sm w-full text-center space-y-8 shadow-2xl border border-[#e1e2ec]"
+                            >
+                                <div className="w-20 h-20 bg-red-50 rounded-[30px] flex items-center justify-center mx-auto text-red-500">
+                                    <AlertCircle size={40} />
+                                </div>
+                                <div className="space-y-2">
+                                    <h3 className="text-2xl font-google-sans font-bold text-[#1a1c1e]">End Session?</h3>
+                                    <p className="text-[#44474e] leading-relaxed">
+                                        Are you sure you want to disconnect the session? This will cancel any active print preparation.
+                                    </p>
+                                </div>
+                                <div className="flex flex-col gap-3">
+                                    <button
+                                        onClick={handleConfirmDisconnect}
+                                        className="w-full py-4 bg-red-600 text-white rounded-3xl font-bold hover:bg-red-700 transition-all active:scale-95 shadow-lg shadow-red-100"
+                                    >
+                                        Yes, Disconnect
+                                    </button>
+                                    <button
+                                        onClick={() => setIsDisconnectModalOpen(false)}
+                                        className="w-full py-4 bg-[#f1f3f9] text-[#44474e] rounded-3xl font-bold hover:bg-[#e1e2ec] transition-all active:scale-95"
+                                    >
+                                        Keep Session
+                                    </button>
+                                </div>
+                            </motion.div>
+                        </div>
+                    )}
+                </AnimatePresence>
 
             </div>
         </div>
