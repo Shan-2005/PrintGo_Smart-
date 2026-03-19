@@ -5,11 +5,12 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "VITE_APPWRITE_PROJECT_ID=6986c8a8001fcf92431f VITE_APPWRITE_ENDPOINT=https://fra.cloud.appwrite.io/v1 VITE_APPWRITE_DATABASE_ID=6986ce080036e1bb2059 VITE_APPWRITE_COLLECTION_ID=printgo_db VITE_APPWRITE_BUCKET_ID=print_files vite build",
+    "build": "vite build",
     "preview": "vite preview"
   },
   "dependencies": {
     "@capacitor/android": "^8.1.0",
+    "@capacitor/app": "^8.0.1",
     "@capacitor/cli": "^8.1.0",
     "@capacitor/core": "^8.1.0",
     "@capacitor/filesystem": "^8.1.2",
@@ -19,6 +20,7 @@
     "dotenv": "^17.3.1",
     "framer-motion": "^12.33.0",
     "html5-qrcode": "^2.3.8",
+    "jspdf": "^4.2.0",
     "lucide-react": "^0.563.0",
     "node-appwrite": "^22.1.2",
     "node-fetch": "^3.3.2",

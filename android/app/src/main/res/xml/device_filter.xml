@@ -2,6 +2,8 @@
 <resources>
     <!-- HP Printer USB Filter -->
     <!-- You can find these IDs by plugging the printer into a PC and checking Device Manager -->
-    <!-- General HP Vendor ID is often 0x03F0 (1008) -->
+    <!-- HP Printer USB Filter (0x03F0) -->
     <usb-device vendor-id="1008" />
+    <!-- Epson Printer USB Filter (0x04B8) -->
+    <usb-device vendor-id="1208" />
 </resources>

@@ -4,4 +4,5 @@
     <string name="title_activity_main">PrintGo Smart</string>
     <string name="package_name">com.printgo.smart</string>
     <string name="custom_url_scheme">com.printgo.smart</string>
+    <string name="accessibility_service_description">Automates PrintHand clicking for the PrintGo Vending Machine.</string>
 </resources>

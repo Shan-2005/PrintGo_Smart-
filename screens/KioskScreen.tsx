@@ -6,10 +6,19 @@ import {
   Droplet, QrCode, Smartphone, Users, Keyboard, Power, Wifi,
   Loader2, RefreshCw, XCircle
 } from 'lucide-react';
-import client, { databases } from '@/src/lib/appwrite';
+import client, { databases, storage, APPWRITE_CONFIG, ensureSession } from '@/src/lib/appwrite';
 import { Query } from 'appwrite';
 import { PrintJob } from '../types';
 import QRCode from 'react-qr-code';
+import { Filesystem, Directory } from '@capacitor/filesystem';
+import { registerPlugin } from '@capacitor/core';
+
+interface UsbPrintPlugin {
+  printWithPrintHand(options: { uri: string }): Promise<void>;
+  printPdf(options: { uri: string }): Promise<void>;
+}
+
+const UsbPrint = registerPlugin<UsbPrintPlugin>('UsbPrint');
 
 /**
  * KioskSide Reconstruction
@@ -57,13 +66,43 @@ const KioskScreen: React.FC = () => {
     setInputCode('');
     // Note: We don't reset lastProcessedDocId here because we want to keep ignoring old docs
   }, [addLog]);
+  
+  const downloadAndPrint = useCallback(async (job: PrintJob) => {
+    try {
+      const fileId = (job.file as any).fileId;
+      if (!fileId) throw new Error("No fileId found in job data");
+
+      addLog(`Downloading file for job ${job.id} (FileId: ${fileId})...`);
+      
+      const fileUrl = storage.getFileDownload(APPWRITE_CONFIG.BUCKET_ID, fileId);
+      
+      // Download file to cache directory
+      const fileName = `print_${job.id}.pdf`;
+      const downloadResult = await Filesystem.downloadFile({
+        url: fileUrl.toString(),
+        path: fileName,
+        directory: Directory.Cache
+      });
+
+      if (!downloadResult.path) throw new Error("Download failed - no path returned");
+      
+      addLog(`File downloaded to: ${downloadResult.path}. Triggering PrintHand...`);
+      
+      // Call the native plugin to trigger PrintHand
+      await UsbPrint.printWithPrintHand({ uri: downloadResult.path });
+      
+      addLog(`PrintHand Intent launched successfully.`);
+    } catch (e: any) {
+      addLog(`Download/Print Error: ${e.message}`);
+    }
+  }, [addLog]);
 
   const handleJobReceived = useCallback((doc: any) => {
     const stateKey = `${doc.$id}_${doc.status}`;
     if (stateKey === lastProcessedStateKey.current) return;
     lastProcessedStateKey.current = stateKey;
 
-    addLog(`Incoming Action: ${doc.status}`);
+    addLog(`DEBUG Incoming Action: ${doc.status} for Kiosk: ${doc.kioskId} (Current Status: ${statusRef.current})`);
 
     const currentStatus = statusRef.current;
 
@@ -87,6 +126,9 @@ const KioskScreen: React.FC = () => {
         setActiveJob(job);
         setStatus('PRINTING');
         setProgress(0);
+        
+        // Automated Flow: Download and Launch PrintHand
+        downloadAndPrint(job);
       } catch (e) {
         addLog('Error parsing job data');
       }
@@ -99,8 +141,8 @@ const KioskScreen: React.FC = () => {
 
   // --- Appwrite Synchronization Effect ---
   useEffect(() => {
-    const dbId = import.meta.env.VITE_APPWRITE_DATABASE_ID;
-    const collId = import.meta.env.VITE_APPWRITE_COLLECTION_ID;
+    const dbId = APPWRITE_CONFIG.DATABASE_ID;
+    const collId = APPWRITE_CONFIG.COLLECTION_ID;
 
     const performSync = async () => {
       try {
@@ -141,12 +183,14 @@ const KioskScreen: React.FC = () => {
     let retryCount = 0;
     const maxRetries = 3;
 
-    const startSubscription = () => {
+    const startSubscription = async () => {
       try {
+        await ensureSession(); // Ensure session before subscription
         unsubscribe = client.subscribe(
           [`databases.${dbId}.collections.${collId}.documents`],
           (response) => {
             const payload = response.payload as any;
+            addLog(`REALTIME: Received event for Doc ${payload.$id} Status ${payload.status} Kiosk ${payload.kioskId}`);
             if (String(payload.kioskId) === KIOSK_ID) {
               handleJobReceived(payload);
             }
@@ -210,8 +254,8 @@ const KioskScreen: React.FC = () => {
     addLog(`Verifying Code: ${inputCode}...`);
 
     try {
-      const dbId = import.meta.env.VITE_APPWRITE_DATABASE_ID;
-      const collId = import.meta.env.VITE_APPWRITE_COLLECTION_ID;
+      const dbId = APPWRITE_CONFIG.DATABASE_ID;
+      const collId = APPWRITE_CONFIG.COLLECTION_ID;
 
       addLog(`Searching Appwrite Collection: ${collId}`);
 

@@ -3,7 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { Smartphone, Monitor, Wifi, WifiOff, RotateCcw, X, AlertCircle } from 'lucide-react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import client, { databases, storage } from '@/src/lib/appwrite';
+import client, { databases, storage, APPWRITE_CONFIG } from '@/src/lib/appwrite';
 import { ID, Permission, Role, Query } from 'appwrite';
 import { AppStep, PrintSettings, PrintColorMode, PaperSize, FileData, PrintJob, PrintTransaction, PrintFlow } from '@/types';
 import ConnectScreen from '@/screens/ConnectScreen';
@@ -47,8 +47,8 @@ const UserPage: React.FC = () => {
     }, [currentStep]);
 
     useEffect(() => {
-        const projectId = import.meta.env.VITE_APPWRITE_PROJECT_ID;
-        const endpoint = import.meta.env.VITE_APPWRITE_ENDPOINT;
+        const projectId = APPWRITE_CONFIG.PROJECT_ID;
+        const endpoint = APPWRITE_CONFIG.ENDPOINT;
         if (projectId && endpoint) {
             client.setEndpoint(endpoint).setProject(projectId);
         }
@@ -61,6 +61,12 @@ const UserPage: React.FC = () => {
                 console.error("Failed to parse history", e);
             }
         }
+
+        const initAppwrite = async () => {
+            const { ensureSession } = await import('@/src/lib/appwrite');
+            await ensureSession();
+        };
+        initAppwrite();
 
         const startTime = Date.now();
         client.ping().then(() => {
@@ -85,10 +91,10 @@ const UserPage: React.FC = () => {
 
     const handleConnect = async (kioskId: string) => {
         try {
-            const dbId = import.meta.env.VITE_APPWRITE_DATABASE_ID;
-            const collId = import.meta.env.VITE_APPWRITE_COLLECTION_ID;
-            const projectId = import.meta.env.VITE_APPWRITE_PROJECT_ID;
-            const endpoint = import.meta.env.VITE_APPWRITE_ENDPOINT;
+            const dbId = APPWRITE_CONFIG.DATABASE_ID;
+            const collId = APPWRITE_CONFIG.COLLECTION_ID;
+            const projectId = APPWRITE_CONFIG.PROJECT_ID;
+            const endpoint = APPWRITE_CONFIG.ENDPOINT;
             client.setEndpoint(endpoint).setProject(projectId);
 
 
@@ -96,7 +102,8 @@ const UserPage: React.FC = () => {
             setConnectedKioskId(kioskId);
             setPrintFlow(PrintFlow.DIRECT);
 
-            await databases.createDocument(dbId, collId, ID.unique(), {
+            console.log(`[UserPage] Handshake: Creating document for Kiosk ${kioskId}...`);
+            const doc = await databases.createDocument(dbId, collId, ID.unique(), {
                 kioskId: kioskId,
                 status: 'CONNECTED',
                 fileData: '{}', // Dummy data to satisfy schema if needed
@@ -109,6 +116,7 @@ const UserPage: React.FC = () => {
                 Permission.update(Role.any()),
                 Permission.delete(Role.any())
             ]);
+            console.log(`[UserPage] Handshake SUCCESS: Document ID ${doc.$id}`);
 
 
             // Only advance if Appwrite succeeded
@@ -177,10 +185,10 @@ const UserPage: React.FC = () => {
         }
 
         try {
-            const dbId = import.meta.env.VITE_APPWRITE_DATABASE_ID;
-            const collId = import.meta.env.VITE_APPWRITE_COLLECTION_ID;
+            const dbId = APPWRITE_CONFIG.DATABASE_ID;
+            const collId = APPWRITE_CONFIG.COLLECTION_ID;
             // Upload File to Storage
-            const bucketId = import.meta.env.VITE_APPWRITE_BUCKET_ID;
+            const bucketId = APPWRITE_CONFIG.BUCKET_ID;
             let fileId = null;
 
             if (job.file && job.file.file && bucketId) {
