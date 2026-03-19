@@ -327,7 +327,7 @@ const UserPage: React.FC = () => {
                         </div>
                     </div>
                     <div className="flex items-center gap-3">
-                        {currentStep !== AppStep.CONNECT && (
+                        {currentStep !== AppStep.CONNECT && printFlow !== PrintFlow.CLOUD && (
                             <button onClick={resetApp} className="px-4 py-2 text-xs font-bold text-[#44474e] hover:bg-[#f1f3f9] rounded-full transition-all border border-[#e1e2ec]">Disconnect</button>
                         )}
                     </div>

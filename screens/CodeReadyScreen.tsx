@@ -103,19 +103,28 @@ const CodeReadyScreen: React.FC<CodeReadyScreenProps> = ({ code, onStartPrint })
 
       {/* Action Buttons */}
       <div className="w-full space-y-4">
-        <button
-          onClick={onStartPrint}
-          className="w-full py-5 px-8 bg-[#005fb0] text-white rounded-[28px] font-google-sans font-medium text-lg hover:bg-[#004a8a] transition-all flex items-center justify-center gap-3 shadow-xl shadow-blue-200 active:scale-[0.98]"
-        >
-          <Printer size={22} strokeWidth={2} />
-          Release Print Now
-        </button>
-        
         <div className="flex gap-3">
-          <button className="flex-1 py-4 bg-white border border-[#e1e2ec] rounded-[24px] text-sm font-google-sans font-medium text-[#44474e] hover:bg-[#f1f3f9] transition-all flex items-center justify-center gap-2">
+          <button 
+            onClick={() => window.print()}
+            className="flex-1 py-4 bg-white border border-[#e1e2ec] rounded-[24px] text-sm font-google-sans font-medium text-[#44474e] hover:bg-[#f1f3f9] transition-all flex items-center justify-center gap-2"
+          >
             <Download size={16} /> Save Ticket
           </button>
-          <button className="flex-1 py-4 bg-white border border-[#e1e2ec] rounded-[24px] text-sm font-google-sans font-medium text-[#44474e] hover:bg-[#f1f3f9] transition-all flex items-center justify-center gap-2">
+          <button 
+            onClick={() => {
+              if (navigator.share) {
+                navigator.share({
+                  title: 'PrintGo Smart Release Code',
+                  text: `My PrintGo Smart release code is: ${code}. Visit any Kiosk to print!`,
+                  url: window.location.href
+                }).catch(() => {});
+              } else {
+                navigator.clipboard.writeText(code);
+                alert('Code copied to clipboard: ' + code);
+              }
+            }}
+            className="flex-1 py-4 bg-white border border-[#e1e2ec] rounded-[24px] text-sm font-google-sans font-medium text-[#44474e] hover:bg-[#f1f3f9] transition-all flex items-center justify-center gap-2"
+          >
             <Share2 size={16} /> Share
           </button>
         </div>

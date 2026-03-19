@@ -1,11 +1,12 @@
 import React from 'react';
 import { BrowserRouter, HashRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { Capacitor } from '@capacitor/core';
 import UserPage from './src/pages/UserPage';
 import KioskPage from './src/pages/KioskPage';
 import AndroidKioskPage from './src/pages/AndroidKioskPage';
 
 // Detect if we are running in the Capacitor Android environment
-const isAndroidApp = window.location.hostname === 'localhost' || window.location.protocol === 'file:';
+const isAndroidApp = Capacitor.getPlatform() === 'android';
 
 const App: React.FC = () => {
   const Router = isAndroidApp ? HashRouter : BrowserRouter;
