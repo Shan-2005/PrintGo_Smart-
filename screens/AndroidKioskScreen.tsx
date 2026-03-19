@@ -256,6 +256,7 @@ const AndroidKioskScreen: React.FC = () => {
         setInputCode('');
         setErrorMsg(null);
         processedJobs.current.clear();
+        activeSessionId.current = null; // Clear session ref v5.9.33
         addLog('Kiosk Reset to IDLE');
     }, [addLog]);
 
@@ -383,19 +384,22 @@ const AndroidKioskScreen: React.FC = () => {
         const currentStatus = statusRef.current;
         const currentIsAgent = isAgentRef.current;
 
+        // Case 0: Explicit Disconnect Signal (v5.9.33) - HIGH PRIORITY
+        if (doc.status === 'DISCONNECTED') {
+            const isMatch = activeSessionId.current === doc.$id || String(doc.kioskId) === KIOSK_ID;
+            if (isMatch && currentStatus !== 'IDLE') {
+                addLog(`DISCONNECT: Received signal for ID ${doc.$id}. Resetting...`);
+                resetKiosk();
+                return;
+            }
+        }
+
         // Case A: User Connected via QR
         if (doc.status === 'CONNECTED' && currentStatus === 'IDLE') {
             addLog(`HANDSHAKE: User connected. Session ID: ${doc.$id}`);
             activeSessionId.current = doc.$id;
             setConnectedUser('User');
             setStatus('CONNECTED');
-        }
-        // Case A.1: Explicit Disconnect (v5.9.32)
-        else if (doc.status === 'DISCONNECTED') {
-            if (activeSessionId.current === doc.$id || String(doc.kioskId) === KIOSK_ID) {
-                addLog(`DISCONNECT: Received signal for Session ${doc.$id}`);
-                resetKiosk();
-            }
         }
         // Case B: Job Ready to Print (Local Agent Takeover)
         else if (doc.status === 'QUEUED' || doc.status === 'PENDING') {
