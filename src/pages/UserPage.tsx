@@ -13,7 +13,7 @@ import PaymentScreen from '@/screens/PaymentScreen';
 import CodeReadyScreen from '@/screens/CodeReadyScreen';
 import PrintingScreen from '@/screens/PrintingScreen';
 import SuccessScreen from '@/screens/SuccessScreen';
-import { IS_TEST_MODE } from '@/src/constants';
+import { IS_TEST_MODE, SKIP_PAYMENT_UI } from '@/src/constants';
 
 const UserPage: React.FC = () => {
     const navigate = useNavigate();
@@ -185,11 +185,17 @@ const UserPage: React.FC = () => {
             flow: printFlow
         };
 
-        console.log("Proceeding directly to print (Payment Bypassed for Testing):", newJob.id);
+        console.log("Job Prepared:", newJob.id);
         setCurrentJob(newJob);
 
-        // Always bypass payment screen for current testing phase
-        handlePaymentSuccess(undefined, newJob);
+        // Check if we should skip the payment screen
+        if (IS_TEST_MODE || SKIP_PAYMENT_UI) {
+            console.log("[UserPage] Payment Bypassed (Test Mode/Skip UI)");
+            handlePaymentSuccess(undefined, newJob);
+        } else {
+            console.log("[UserPage] Proceeding to Payment Screen");
+            setCurrentStep(AppStep.PAYMENT);
+        }
     };
 
     const handlePaymentSuccess = async (paymentId?: string, jobOverride?: PrintJob) => {

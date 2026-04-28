@@ -23,6 +23,21 @@ const PaymentScreen: React.FC<PaymentScreenProps> = ({ settings, amount, onPayme
   const [paymentState, setPaymentState] = useState<PaymentState>('READY');
   const [errorMessage, setErrorMessage] = useState<string>('');
 
+  /** Waits up to 10 s for the async Razorpay SDK to finish loading. */
+  const waitForRazorpay = (): Promise<void> =>
+    new Promise((resolve, reject) => {
+      if (window.Razorpay) { resolve(); return; }
+      let elapsed = 0;
+      const interval = setInterval(() => {
+        elapsed += 100;
+        if (window.Razorpay) { clearInterval(interval); resolve(); }
+        else if (elapsed >= 10000) {
+          clearInterval(interval);
+          reject(new Error('Razorpay SDK failed to load. Check your internet connection.'));
+        }
+      }, 100);
+    });
+
   const openRazorpayCheckout = async () => {
     setPaymentState('CREATING_ORDER');
     setErrorMessage('');
@@ -57,6 +72,8 @@ const PaymentScreen: React.FC<PaymentScreenProps> = ({ settings, amount, onPayme
       if (!response.ok) throw new Error(orderData.error || 'Failed to create order');
 
       const keyId = import.meta.env.VITE_RAZORPAY_KEY_ID;
+      console.log('🔑 Razorpay Key ID:', keyId ? 'Found' : 'MISSING');
+      if (!keyId) throw new Error('Razorpay Key ID is not configured (VITE_RAZORPAY_KEY_ID)');
 
       // 2. Configure Razorpay Options
       const options = {
@@ -115,8 +132,14 @@ const PaymentScreen: React.FC<PaymentScreenProps> = ({ settings, amount, onPayme
         }
       };
 
-      console.log('🚀 Opening Razorpay checkout...');
+      console.log('🚀 Waiting for Razorpay SDK...');
+      await waitForRazorpay(); // Handles async script load race condition
       const rzp = new window.Razorpay(options);
+      rzp.on('payment.failed', function (response: any) {
+        console.error('❌ Razorpay Payment Failed:', response.error);
+        setErrorMessage(`Payment failed: ${response.error.description}`);
+        setPaymentState('ERROR');
+      });
       rzp.open();
       setPaymentState('AWAITING_PAYMENT');
 

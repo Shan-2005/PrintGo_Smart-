@@ -11,42 +11,21 @@ import android.widget.FrameLayout;
 import android.widget.ImageButton;
 import android.widget.ImageView;
 import com.getcapacitor.BridgeActivity;
+import com.printgo.smart.PrintGoBridge;
 
 public class MainActivity extends BridgeActivity {
     private static final int LOCK_REQUEST_CODE = 123;
 
     @Override
     public void onCreate(Bundle savedInstanceState) {
-        registerPlugin(NativePrintPlugin.class);
-        registerPlugin(UsbPrintPlugin.class);
-        setTheme(R.style.AppTheme_NoActionBarLaunch);
+        registerPlugin(PrintGoBridge.class);
         super.onCreate(savedInstanceState);
 
-        // Every time the app is launched, enable the Kiosk Lock
+        // Ensure kiosk mode state is persistent
         getSharedPreferences("kiosk_prefs", MODE_PRIVATE)
                 .edit()
                 .putBoolean("locked", true)
-                .commit(); // Use .commit() for reliability
-
-        // Add a floating "Exit" button top-left
-        addExitButton();
-    }
-
-    private void addExitButton() {
-        ImageButton exitBtn = new ImageButton(this);
-        exitBtn.setImageResource(R.drawable.ic_exit_vector); // THE NEW VECTOR!
-        exitBtn.setScaleType(ImageView.ScaleType.FIT_CENTER);
-        exitBtn.setBackgroundColor(Color.parseColor("#44000000")); // Very subtle background
-        exitBtn.setPadding(24, 24, 24, 24);
-        exitBtn.setElevation(15);
-
-        FrameLayout.LayoutParams params = new FrameLayout.LayoutParams(120, 120);
-        params.gravity = Gravity.TOP | Gravity.START;
-        params.setMargins(16, 16, 0, 0);
-
-        exitBtn.setOnClickListener(v -> requestUnlock());
-
-        addContentView(exitBtn, params);
+                .apply();
     }
 
     private void requestUnlock() {
@@ -71,7 +50,7 @@ public class MainActivity extends BridgeActivity {
         }
     }
 
-    private void unlockAndExit() {
+    public void unlockAndExit() {
         // Disable the watchdog persistently so the service doesn't force-restart the app
         getSharedPreferences("kiosk_prefs", MODE_PRIVATE)
                 .edit()

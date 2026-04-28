@@ -4,7 +4,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta http-equiv="Content-Security-Policy"
-    content="default-src 'self' https://fra.cloud.appwrite.io https://checkout.razorpay.com; script-src 'self' 'unsafe-inline' https://checkout.razorpay.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob: https://*; connect-src 'self' https://fra.cloud.appwrite.io wss://fra.cloud.appwrite.io; frame-src 'self' https://checkout.razorpay.com; object-src 'none';">
+    content="default-src * 'self' 'unsafe-inline' 'unsafe-eval' data: blob:; script-src * 'self' 'unsafe-inline' 'unsafe-eval' data: blob:; style-src * 'self' 'unsafe-inline'; img-src * 'self' data: blob:; font-src * 'self' data:; connect-src * 'self' 'unsafe-inline' wss:;">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
   <title>PrintGo - Smart Vending</title>
   <link
@@ -64,8 +64,7 @@
     }
 
     .glass-effect {
-      backdrop-filter: blur(12px);
-      background: rgba(255, 255, 255, 0.7);
+      background: rgba(255, 255, 255, 0.95);
     }
   </style>
 </head>

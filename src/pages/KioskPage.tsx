@@ -3,7 +3,7 @@ import React from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { Smartphone, Monitor } from 'lucide-react';
-import KioskScreen from '@/screens/KioskScreen';
+import KioskScreen from '@/screens/AndroidKioskScreen';
 
 const KioskPage: React.FC = () => {
     const navigate = useNavigate();

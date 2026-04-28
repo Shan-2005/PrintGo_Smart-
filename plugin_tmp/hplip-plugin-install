@@ -1,0 +1,21 @@
+#!/bin/bash
+
+# su/sudo wrapper for HPLIP installer
+
+if [ $# -eq 6 ]
+then
+   `$6 --version &> /dev/null`
+    if [ $? -eq 0 ]
+    then
+        $6 ./plugin_install.py $1 $2 $3 $4 $5
+    else
+        python ./plugin_install.py $1 $2 $3 $4 $5
+    fi
+else
+    if [ -f /usr/bin/python ]
+    then
+        python ./plugin_install.py $1 $2 $3 $4 $5
+    else
+        python3 ./plugin_install.py $1 $2 $3 $4 $5
+    fi
+fi

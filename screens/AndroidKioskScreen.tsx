@@ -6,18 +6,18 @@ import {
     Droplet, QrCode, Smartphone, Users, Keyboard, Power, Wifi,
     Loader2, RefreshCw, XCircle
 } from 'lucide-react';
-import client, { databases, storage, APPWRITE_CONFIG } from '@/src/lib/appwrite';
-import { Query } from 'appwrite';
+import client, { databases, storage, APPWRITE_CONFIG, ensureSession } from '@/src/lib/appwrite';
+import { Query, ID, Permission, Role } from 'appwrite';
 import { PrintJob } from '../types';
 import QRCode from 'react-qr-code';
 import { SplashScreen } from '@capacitor/splash-screen';
-import { Capacitor, registerPlugin } from '@capacitor/core';
+import { Capacitor } from '@capacitor/core';
+import { PrintGoBridge as NativePrint } from '../services/BridgeService';
 import { Filesystem, Directory } from '@capacitor/filesystem';
 import { App } from '@capacitor/app';
 import { jsPDF } from 'jspdf';
 
-const NativePrint = registerPlugin<any>('NativePrint');
-const UsbPrint = registerPlugin<any>('UsbPrint');
+// UsbPrint is consolidated into NativePrint
 
 /**
  * AndroidKioskScreen
@@ -33,7 +33,7 @@ const AGENT_POLL_INTERVAL = 2000; // Fast polling for Android reliability
 const SESSION_TIMEOUT_MS = 180000;
 const PRODUCTION_URL = 'https://print-go-smart.vercel.app';
 
-type KioskStatus = 'IDLE' | 'CONNECTED' | 'MANUAL_ENTRY' | 'ADJUST_PRINT' | 'PRINTING' | 'COMPLETE' | 'ERROR';
+type KioskStatus = 'IDLE' | 'CONNECTED' | 'MANUAL_ENTRY' | 'PRINTING' | 'COMPLETE' | 'ERROR';
 
 const AndroidKioskScreen: React.FC = () => {
     // --- State: UI ---
@@ -45,14 +45,7 @@ const AndroidKioskScreen: React.FC = () => {
     const [errorMsg, setErrorMsg] = useState<string | null>(null);
     const [resetCountdown, setResetCountdown] = useState(6);
 
-    // --- State: Print Adjustments ---
-    const [printScale, setPrintScale] = useState(0.90); // 0.90 for "Safety Fit"
-    const [printRotation, setPrintRotation] = useState(0);
-    const [printOffsetX, setPrintOffsetX] = useState(0);
-    const [printOffsetY, setPrintOffsetY] = useState(0);
-    const [hpMode, setHpMode] = useState<'AUTO' | 'XQX' | 'PCL' | 'PDF'>('AUTO');
-    const [previewUrl, setPreviewUrl] = useState<string | null>(null);
-    const [isPreviewLoading, setIsPreviewLoading] = useState(false);
+    // --- State: Local file URI for printing ---
     const [localPdfUri, setLocalPdfUri] = useState<string | null>(null);
 
     // --- Refs for Synchronization ---
@@ -71,6 +64,8 @@ const AndroidKioskScreen: React.FC = () => {
     const isIntentLaunchingRef = useRef(false);
     useEffect(() => { isIntentLaunchingRef.current = isIntentLaunching; }, [isIntentLaunching]);
 
+
+
     // --- Refs for State Management (Inside Listeners) ---
     const statusRef = useRef<KioskStatus>(status);
     useEffect(() => { statusRef.current = status; }, [status]);
@@ -86,6 +81,23 @@ const AndroidKioskScreen: React.FC = () => {
         console.log(`[Android-Kiosk] ${msg}`);
         setDebugLogs(prev => [logEntry, ...prev].slice(0, 15)); // Keep last 15 logs
     }, []);
+
+    // --- Hidden Exit Trigger ---
+    const exitTapsRef = useRef(0);
+    const exitTapsTimerRef = useRef<NodeJS.Timeout | null>(null);
+    const handleExitTap = useCallback(() => {
+        exitTapsRef.current += 1;
+        if (exitTapsTimerRef.current) clearTimeout(exitTapsTimerRef.current);
+        
+        if (exitTapsRef.current >= 5) {
+            addLog('SECRET: Exit trigger activated!');
+            NativePrint.exitKiosk().catch(err => addLog(`Exit Error: ${err.message}`));
+        } else {
+            exitTapsTimerRef.current = setTimeout(() => {
+                exitTapsRef.current = 0;
+            }, 2000);
+        }
+    }, [addLog]);
 
     // --- Initialization: Immediate Splash Hide ---
     useEffect(() => {
@@ -114,7 +126,6 @@ const AndroidKioskScreen: React.FC = () => {
 
             try {
                 addLog('Initializing Appwrite Session...');
-                const { ensureSession } = await import('@/src/lib/appwrite');
                 await ensureSession();
                 addLog('Appwrite Session Ready');
 
@@ -133,7 +144,7 @@ const AndroidKioskScreen: React.FC = () => {
                 requestPerms();
 
                 setHasPermissions(true);
-                addLog('Plugins Initialized');
+                addLog('Kiosk System Initialized');
             } catch (err) {
                 addLog(`Init Error: ${err}`);
                 setHasPermissions(true);
@@ -141,7 +152,7 @@ const AndroidKioskScreen: React.FC = () => {
         };
 
         // --- Real-time Print Status Listener ---
-        const statusListener = UsbPrint.addListener('printStatusUpdate', (data: any) => {
+        const statusListener = NativePrint.addListener('printStatusUpdate', (data: any) => {
             const currentStatus = statusRef.current;
             addLog(`STATUS: ${data.status} (${data.progress}%)`);
             setProgress(data.progress);
@@ -170,7 +181,7 @@ const AndroidKioskScreen: React.FC = () => {
             }
         });
 
-        const robotListener = UsbPrint.addListener('robotLog', (data: any) => {
+        const robotListener = NativePrint.addListener('robotLog', (data: any) => {
             addLog(data.message);
         });
 
@@ -240,8 +251,8 @@ const AndroidKioskScreen: React.FC = () => {
         const timeout = setTimeout(initApp, 100);
         return () => {
             clearTimeout(timeout);
-            statusListener.remove();
-            robotListener.remove();
+            statusListener.then(h => h.remove());
+            robotListener.then(h => h.remove());
             appStateListener.then(h => h.remove());
         };
     }, [addLog]);
@@ -255,8 +266,17 @@ const AndroidKioskScreen: React.FC = () => {
         setProgress(0);
         setInputCode('');
         setErrorMsg(null);
-        processedJobs.current.clear();
-        activeSessionId.current = null; // Clear session ref v5.9.33
+        
+        // --- CRITICAL: Do NOT clear processedJobs.current here ---
+        // This set prevents the sync loop from re-triggering the same job 
+        // before the cloud update is fully propagated. It is cleared only on mount.
+        
+        setIsAgentProcessing(false);
+        setIsIntentLaunching(false);
+        isAgentRef.current = false;
+        isIntentLaunchingRef.current = false;
+        
+        activeSessionId.current = null;
         addLog('Kiosk Reset to IDLE');
     }, [addLog]);
 
@@ -305,7 +325,7 @@ const AndroidKioskScreen: React.FC = () => {
 
         addLog('USB: Discovering printers...');
         try {
-            const { devices } = await UsbPrint.discoverPrinters();
+            const { devices } = await NativePrint.discoverPrinters();
             if (!devices || devices.length === 0) {
                 addLog('USB: No HP or Epson printers found.');
                 return false;
@@ -316,14 +336,14 @@ const AndroidKioskScreen: React.FC = () => {
 
             // Request permission
             addLog('USB: Requesting Permission...');
-            await UsbPrint.requestPermission({
+            await NativePrint.requestPermission({
                 vendorId: device.vendorId,
                 productId: device.productId
             });
 
             // Connect
             addLog('USB: Connecting...');
-            const result = await UsbPrint.connect({
+            const result = await NativePrint.connect({
                 vendorId: device.vendorId,
                 productId: device.productId,
                 skipFirmware: skipFirmware
@@ -352,10 +372,10 @@ const AndroidKioskScreen: React.FC = () => {
     const handleDebugTestPrint = async () => {
         addLog('TEST: Preparing Test Page...');
         try {
-            const result = await UsbPrint.prepareTestPage();
+            const result = await NativePrint.prepareTestPage();
             addLog('TEST: Page ready. Sharing to PrintHand...');
             
-            await UsbPrint.printWithPrintHand({
+            await NativePrint.printWithPrintHand({
                 uri: result.uri
             });
             
@@ -461,116 +481,147 @@ const AndroidKioskScreen: React.FC = () => {
             };
             setActiveJob(job);
 
-            // 2. Download file using native Filesystem plugin (more reliable on Android)
+            // 2. Download and prepare file
             addLog(`Downloading ${fileData.name}...`);
             setProgress(30);
 
-            const fileUrl = storage.getFileDownload(
-                APPWRITE_CONFIG.BUCKET_ID,
-                fileData.fileId
-            ).toString();
-
-            const fileName = `job_${doc.$id}.pdf`;
-            const downloadResult = await Filesystem.downloadFile({
-                url: fileUrl,
-                path: fileName,
-                directory: Directory.Cache
-            });
-
-            addLog(`Download success: ${fileName}`);
-            setProgress(60);
-
-            // Read file back as base64 for processing if it's an image
-            const fileContent = await Filesystem.readFile({
-                path: fileName,
-                directory: Directory.Cache
-            });
-            let base64Only = fileContent.data as string;
-
-            addLog('Preparing for Native Print...');
-            // Robustly extract just the base64 characters if it has a prefix
-            if (base64Only.includes('base64,')) {
-                base64Only = base64Only.substring(base64Only.indexOf('base64,') + 7);
-            }
-
+            const timestamp = Date.now();
+            const targetPath = `PrintQueue/job_${doc.$id}_${timestamp}.pdf`;
+            const fileUrl = storage.getFileDownload(APPWRITE_CONFIG.BUCKET_ID, fileData.fileId).toString();
+            
+            let fileUri: string = '';
+            let orientation = 'Auto';
             const isImage = fileData.type && fileData.type.startsWith('image/');
+            
             if (isImage) {
-                addLog('Converting image to PDF format...');
-                const pdf = new jsPDF({
-                    orientation: 'p',
-                    unit: 'px',
-                    format: 'a4'
+                // For images, we must wrap them in a PDF
+                const response = await fetch(fileUrl);
+                const blob = await response.blob();
+                
+                const { base64Data, width, height } = await new Promise<{base64Data: string, width: number, height: number}>((resolve, reject) => {
+                    const reader = new FileReader();
+                    reader.onloadend = () => {
+                        const base64 = reader.result as string;
+                        const dataUrl = base64;
+                        const img = new Image();
+                        img.onload = () => {
+                            resolve({
+                                base64Data: base64.split(',')[1],
+                                width: img.width,
+                                height: img.height
+                            });
+                        };
+                        img.onerror = reject;
+                        img.src = dataUrl;
+                    };
+                    reader.readAsDataURL(blob);
+                });
+
+                const isLandscape = width > height;
+                orientation = isLandscape ? 'Landscape' : 'Portrait';
+                
+                const pdf = new jsPDF({ 
+                    orientation: isLandscape ? 'landscape' : 'portrait', 
+                    unit: 'mm', 
+                    format: 'a4' 
                 });
                 
                 const a4Width = pdf.internal.pageSize.getWidth();
                 const a4Height = pdf.internal.pageSize.getHeight();
                 
-                // Construct a full data URI for jsPDF
-                const dataUri = base64Only.startsWith('data:') ? base64Only : `data:${fileData.type};base64,${base64Only}`;
-                pdf.addImage(dataUri, fileData.type.includes('png') ? 'PNG' : 'JPEG', 0, 0, a4Width, a4Height);
-                const pdfDataUri = pdf.output('datauristring');
-                base64Only = pdfDataUri.substring(pdfDataUri.indexOf('base64,') + 7);
-                addLog('Image wrapped in PDF successfully!');
-            } else {
-                addLog(`Base64 ready, length: ${base64Only.length}`);
-            }
+                // Maintain aspect ratio while fitting to A4
+                let drawWidth = a4Width;
+                let drawHeight = (height * a4Width) / width;
+                
+                if (drawHeight > a4Height) {
+                    drawHeight = a4Height;
+                    drawWidth = (width * a4Height) / height;
+                }
 
-            try {
-                // Save locally first so the PrintManager InputStream can access it via URI
-                const timestamp = Date.now();
-                const fileName = `PrintQueue/job_${timestamp}.pdf`;
+                // Center the image
+                const xOffset = (a4Width - drawWidth) / 2;
+                const yOffset = (a4Height - drawHeight) / 2;
 
-                addLog(`Saving to: Cache/${fileName}`);
-
+                pdf.addImage(
+                    `data:${fileData.type};base64,${base64Data}`, 
+                    fileData.type.includes('png') ? 'PNG' : 'JPEG', 
+                    xOffset, yOffset, drawWidth, drawHeight
+                );
+                const pdfBase64 = pdf.output('datauristring').split(',')[1];
+                
                 const writeResult = await Filesystem.writeFile({
-                    path: fileName,
-                    data: base64Only,
+                    path: targetPath,
+                    data: pdfBase64,
                     directory: Directory.Cache,
                     recursive: true
                 });
-
-                addLog('File ready. Automating PrintHand sharing...');
-                setLocalPdfUri(writeResult.uri);
-                
-                // CRITICAL: We skip ADJUST_PRINT and go straight to PrintHand
-                addLog(`Auto-Print: Starting process for ${doc.$id}...`);
-                processedJobs.current.add(doc.$id);
-
-                setTimeout(async () => {
-                    try {
-                        let printSettings = { copies: 1, colorMode: 0, paperSize: 'A4' };
-                        try {
-                            if (doc.settings) {
-                                const parsed = typeof doc.settings === 'string' ? JSON.parse(doc.settings) : doc.settings;
-                                printSettings.copies = parseInt(parsed.copies) || 1;
-                                printSettings.colorMode = (parsed.colorMode?.toLowerCase() === 'color') ? 1 : 0;
-                                printSettings.paperSize = parsed.paperSize || 'A4';
-                            }
-                        } catch (parseError) {
-                            addLog('Settings parse error: ' + parseError.message);
-                        }
-
-                        await UsbPrint.printWithPrintHand({ 
-                            uri: writeResult.uri,
-                            copies: printSettings.copies,
-                            colorMode: printSettings.colorMode,
-                            paperSize: printSettings.paperSize
-                        });
-                        addLog(`PrintHand: Job sent. Settings: [Copies: ${printSettings.copies}, Color: ${printSettings.colorMode === 1 ? 'Color' : 'BW'}]`);
-                    } catch (e: any) {
-                        addLog(`Auto-Print Intent Error: ${e.message}`);
-                        setStatus('ERROR');
-                        setErrorMsg(e.message);
-                    }
-                }, 500);
-
-            } catch (queueErr: any) {
-                addLog(`Queue Failed: ${queueErr.message}.`);
-                return;
+                fileUri = writeResult.uri;
+                addLog(`Image wrapped in PDF (${orientation})`);
+            } else {
+                // For PDFs, download directly to the target path
+                await Filesystem.downloadFile({
+                    url: fileUrl,
+                    path: targetPath,
+                    directory: Directory.Cache,
+                    recursive: true
+                });
+                const uriResult = await Filesystem.getUri({
+                    path: targetPath,
+                    directory: Directory.Cache
+                });
+                fileUri = uriResult.uri;
+                addLog('PDF downloaded directly');
+                orientation = 'Auto'; // Trust PrintHand for PDF orientation
             }
 
-            // Waiting for user confirmation in ADJUST_PRINT screen
-            addLog('Ready for Preview Adjustments');
+            setLocalPdfUri(fileUri);
+            setProgress(80);
+
+            // --- VALIDATION: Ensure file is not empty/malformed before PrintHand ---
+            try {
+                const stats = await Filesystem.stat({
+                    path: targetPath,
+                    directory: Directory.Cache
+                });
+                addLog(`Validation: File size = ${stats.size} bytes`);
+                if (stats.size < 100) { // Extremely small PDF is likely malformed or empty
+                    throw new Error(`Downloaded file is too small (${stats.size} bytes). Likely corrupted.`);
+                }
+            } catch (statErr: any) {
+                throw new Error(`File Validation Failed: ${statErr.message}`);
+            }
+
+            // --- AUTO-PRINT: Send directly to PrintHand (no preview screen) ---
+            addLog(`Auto-Print: Sending to PrintHand...`);
+            setStatus('PRINTING');
+            setIsIntentLaunching(true);
+
+            // Persist intent ID for crash recovery
+            localStorage.setItem('pending_print_intent_id', doc.$id);
+            saveJobAsProcessed(doc.$id);
+
+            await NativePrint.printWithPrintHand({ 
+                uri: fileUri,
+                colorMode: settings.color === 'Color' ? 1 : 0,
+                copies: settings.copies || 1,
+                orientation: orientation
+            });
+
+            addLog('Auto-Print: Intent sent to PrintHand via NativePrint!');
+            setProgress(100);
+            setStatus('COMPLETE');
+
+            // Mark job as COMPLETED in Appwrite
+            try {
+                await databases.updateDocument(
+                    APPWRITE_CONFIG.DATABASE_ID,
+                    APPWRITE_CONFIG.COLLECTION_ID,
+                    doc.$id,
+                    { status: 'COMPLETED' }
+                );
+            } catch (err: any) {
+                addLog(`Cloud finalize warning: ${err.message}`);
+            }
 
         } catch (error: any) {
             const msg = error.message || String(error);
@@ -578,13 +629,10 @@ const AndroidKioskScreen: React.FC = () => {
             setErrorMsg(msg);
             setStatus('ERROR');
             
-            // DO NOT clear lastProcessedStateKey here - that would cause the loop!
-            // Instead, lock the key so this job is never re-triggered.
+            // Lock this job so it's not re-triggered
             lastProcessedStateKey.current = `${doc.$id}_ERROR`;
             processedJobs.current.add(doc.$id);
-            processedJobs.current.add(doc.$id);
             
-            // Also update Appwrite so other agents/polls don't pick this up again
             try {
                 await databases.updateDocument(
                     APPWRITE_CONFIG.DATABASE_ID,
@@ -598,142 +646,11 @@ const AndroidKioskScreen: React.FC = () => {
         } finally {
             isAgentRef.current = false;
             setIsAgentProcessing(false);
+            setIsIntentLaunching(false);
         }
     };
 
-    // --- Effect: Debounced Preview Update ---
-    useEffect(() => {
-        if (statusRef.current !== 'ADJUST_PRINT' || !localPdfUri) return;
 
-        const updatePreview = async () => {
-            setIsPreviewLoading(true);
-            try {
-                const targetDevice = usbDeviceRef.current;
-                const targetDpi = (targetDevice?.vendorId === 1208) ? 360 : 600;
-                
-                const result = await UsbPrint.getPrintPreview({
-                    uri: localPdfUri,
-                    pageIndex: 0,
-                    dpi: targetDpi,
-                    scale: printScale,
-                    rotation: printRotation,
-                    offsetX: printOffsetX,
-                    offsetY: printOffsetY
-                });
-                setPreviewUrl(result.preview);
-            } catch (err: any) {
-                addLog(`Preview Error: ${err.message}`);
-            } finally {
-                setIsPreviewLoading(false);
-            }
-        };
-
-        const timer = setTimeout(updatePreview, 500); 
-        return () => clearTimeout(timer);
-    }, [printScale, printRotation, printOffsetX, printOffsetY, localPdfUri, addLog]);
-
-    const handleConfirmPrint = async () => {
-        if (!localPdfUri || isAgentRef.current) return;
-        
-        isAgentRef.current = true;
-        setIsAgentProcessing(true);
-        setStatus('PRINTING');
-        setProgress(0);
-
-        try {
-            const connected = await ensureUsbConnection();
-            if (!connected) throw new Error('No printer connection.');
-
-            addLog('USB: Starting Adjusted Job...');
-            const targetDevice = usbDeviceRef.current;
-            const targetDpi = (targetDevice?.vendorId === 1208 || targetDevice?.vendorId === 0x04b8) ? 360 : 600;
-
-            const result = await UsbPrint.printPdf({
-                uri: localPdfUri,
-                dpi: targetDpi,
-                scale: printScale,
-                rotation: printRotation,
-                offsetX: printOffsetX,
-                offsetY: printOffsetY,
-                hpMode: hpMode
-            });
-
-            addLog(`USB: Bytes Sent: ${result.bytesSent}`);
-            
-            if (activeJob && !activeJob.id.startsWith('test_job_')) {
-                addLog(`USB: Marking Job ${activeJob.id} as COMPLETED...`);
-                await databases.updateDocument(
-                    APPWRITE_CONFIG.DATABASE_ID,
-                    APPWRITE_CONFIG.COLLECTION_ID,
-                    activeJob.id,
-                    { status: 'COMPLETED' }
-                );
-                processedJobs.current.add(activeJob.id);
-            } else if (activeJob) {
-                addLog('USB: Test Job complete (Local-only).');
-            }
-
-            setProgress(100);
-            setStatus('COMPLETE');
-        } catch (err: any) {
-            addLog(`Print Error: ${err.message}`);
-            setErrorMsg(err.message);
-            setStatus('ERROR');
-        } finally {
-            isAgentRef.current = false;
-            setIsAgentProcessing(false);
-        }
-    };
-
-    const handlePrintWithPrintHand = async () => {
-        if (!localPdfUri || isAgentRef.current) return;
-        
-        isAgentRef.current = true;
-        setIsAgentProcessing(true);
-        addLog('PrintHand: Sharing file directly...');
-
-        try {
-            // 1. Set UI to PRINTING (Preparing) while intent is launching
-            setIsIntentLaunching(true);
-            setStatus('PRINTING');
-            setIsAgentProcessing(true);
-            
-            // 2. Persistent Tracking: Save ID to localStorage (survives activity destruction)
-            if (activeJob) {
-                localStorage.setItem('pending_print_intent_id', activeJob.id);
-            }
-            
-            // 3. Update Cloud status to PRINTING (without finishing the job yet)
-            if (activeJob && !activeJob.id.startsWith('test_job_')) {
-                databases.updateDocument(
-                    APPWRITE_CONFIG.DATABASE_ID,
-                    APPWRITE_CONFIG.COLLECTION_ID,
-                    activeJob.id,
-                    { status: 'PRINTING' }
-                ).catch(e => addLog(`Cloud Update Error: ${e.message}`));
-            }
-
-            // 4. Finally, send the intent
-            await UsbPrint.printWithPrintHand({
-                uri: localPdfUri,
-                copies: activeJob?.settings?.copies || 1,
-                colorMode: activeJob?.settings?.colorMode === 'Color' ? 1 : 0,
-                paperSize: activeJob?.settings?.paperSize || 'A4'
-            });
-
-            addLog('PrintHand: Intent Sent Success');
-
-            setProgress(100);
-            setStatus('COMPLETE');
-        } catch (err: any) {
-            addLog(`PrintHand Error: ${err.message}`);
-            setErrorMsg(err.message);
-            setStatus('ERROR');
-        } finally {
-            isAgentRef.current = false;
-            setIsAgentProcessing(false);
-        }
-    };
 
     // --- Appwrite Synchronization Effect ---
     useEffect(() => {
@@ -798,7 +715,6 @@ const AndroidKioskScreen: React.FC = () => {
         let unsubscribe: (() => void) | null = null;
         const startSubscription = async () => {
             try {
-                const { ensureSession } = await import('@/src/lib/appwrite');
                 await ensureSession();
                 unsubscribe = client.subscribe(
                     [`databases.${dbId}.collections.${collId}.documents`],
@@ -891,217 +807,224 @@ const AndroidKioskScreen: React.FC = () => {
         }
     };
 
+    // --- Render Helpers ---
+    const renderHeader = () => (
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '1rem 1.5rem' }}>
+            <div style={{ display: 'flex', gap: '1rem' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', backgroundColor: 'rgba(255,255,255,0.05)', padding: '0.6rem 1.25rem', borderRadius: '1rem', border: '1px solid rgba(255,255,255,0.1)' }}>
+                    <div style={{ width: '0.5rem', height: '0.5rem', borderRadius: '50%', backgroundColor: '#22c55e' }} />
+                    <span style={{ fontSize: '10px', fontWeight: '900', textTransform: 'uppercase', letterSpacing: '0.2em', color: 'rgba(255,255,255,0.8)' }}>System Live</span>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', backgroundColor: 'rgba(255,255,255,0.05)', padding: '0.6rem 1.25rem', borderRadius: '1rem', border: '1px solid rgba(255,255,255,0.1)' }}>
+                    <Wifi size={14} color="#d3e4ff" />
+                    <span 
+                        onClick={handleExitTap}
+                        style={{ fontSize: '10px', fontWeight: '900', textTransform: 'uppercase', letterSpacing: '0.2em', color: 'rgba(255,255,255,0.8)', cursor: 'pointer' }}
+                    >
+                        Kiosk-{KIOSK_ID}
+                    </span>
+                </div>
+            </div>
+
+            <div style={{ display: 'flex', gap: '1rem' }}>
+                {['C', 'M', 'Y', 'K'].map((ink, idx) => (
+                    <div key={ink} style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', alignItems: 'center' }}>
+                        <div style={{ height: '3.5rem', width: '0.8rem', backgroundColor: 'rgba(255,255,255,0.05)', borderRadius: '1rem', overflow: 'hidden', border: '1px solid rgba(255,255,255,0.1)', position: 'relative' }}>
+                            <motion.div
+                                initial={{ height: 0 }}
+                                animate={{ height: idx === 3 ? '25%' : '85%' }}
+                                style={{
+                                    position: 'absolute', bottom: 0, width: '100%', borderRadius: '1rem',
+                                    backgroundColor: idx === 0 ? '#22d3ee' : idx === 1 ? '#2dd4bf' : idx === 2 ? '#818cf8' : '#ffffff'
+                                }}
+                            />
+                        </div>
+                    </div>
+                ))}
+            </div>
+        </div>
+    );
+
     // --- Render (Shared with KioskScreen.tsx but streamlined) ---
     // --- Render ---
     return (
-        <div className="h-screen w-screen bg-[#000d1a] flex flex-col relative overflow-hidden font-google-sans text-white">
+        <div style={{
+            position: 'fixed',
+            top: 0, left: 0, right: 0, bottom: 0,
+            backgroundColor: '#000d1a',
+            display: 'flex',
+            flexDirection: 'column',
+            width: '100%',
+            height: '100%',
+            overflow: 'hidden',
+            color: 'white',
+            fontFamily: 'sans-serif'
+        }}>
             {/* Visual Header */}
-            <main className="flex-1 flex flex-col items-center justify-center p-8 relative z-10">
-                {/* IDLE STATE */}
+            {renderHeader()}
+            <main style={{
+                flex: 1,
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                justifyContent: 'center',
+                padding: '2rem',
+                position: 'relative',
+                zIndex: 10,
+                width: '100%',
+                height: '100%'
+            }}>
+                {/* --- IDLE STATE --- */}
                 {status === 'IDLE' && (
-                    <div key="idle-content" className="flex flex-col items-center gap-12">
-                        <h1 className="text-7xl font-bold tracking-tighter text-center">
-                            Ready to <br /><span className="text-blue-400">Print.</span>
-                        </h1>
-                        <p className="text-xl text-white/40">Scan the QR code or enter a release code</p>
-                        <div className="flex gap-6 items-center">
-                            <button
-                                onClick={() => setStatus('MANUAL_ENTRY')}
-                                className="px-10 py-6 bg-white/5 border border-white/10 rounded-full text-xl font-bold flex items-center gap-4 hover:bg-white/10 transition-all active:scale-95"
+                    <motion.div
+                        key="idle"
+                        initial={{ opacity: 0, y: 30 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, scale: 0.95 }}
+                        style={{
+                            display: 'flex',
+                            flexDirection: 'column',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            textAlign: 'center',
+                            width: '100%',
+                            gap: '3rem',
+                            padding: '1rem'
+                        }}
+                    >
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', alignItems: 'center' }}>
+                            <motion.div
+                                initial={{ opacity: 0 }}
+                                animate={{ opacity: 1 }}
+                                style={{
+                                    display: 'inline-flex', padding: '0.4rem 1rem',
+                                    background: 'rgba(59, 130, 246, 0.1)', color: '#93c5fd',
+                                    borderRadius: '9999px', fontSize: '10px', fontWeight: 'bold',
+                                    letterSpacing: '0.25em', border: '1px solid rgba(59, 130, 246, 0.2)',
+                                    textTransform: 'uppercase'
+                                }}
                             >
-                                <Keyboard size={24} /> Enter Code
-                            </button>
-                            <div className="bg-white p-6 rounded-[40px] shadow-2xl">
-                                <QRCode value={`${PRODUCTION_URL}/app?connect=${KIOSK_ID}`} size={160} />
+                                Premium Printing Terminal
+                            </motion.div>
+                            
+                            <h1 style={{
+                                fontSize: 'min(12vw, 5rem)', fontWeight: 'bold',
+                                letterSpacing: '-0.05em', lineHeight: '0.9',
+                                color: 'white'
+                            }}>
+                                Print <br /><span style={{ color: '#60a5fa' }}>Better.</span>
+                            </h1>
+                            
+                            <p style={{
+                                fontSize: '1.1rem', color: 'rgba(255,255,255,0.4)',
+                                maxWidth: '20rem', lineHeight: '1.4'
+                            }}>
+                                Scan code to link device <br /> or use a release code.
+                            </p>
+                        </div>
+
+                        <div style={{ position: 'relative', width: '100%', maxWidth: '22rem' }}>
+                            <div style={{
+                                position: 'absolute', inset: '-1rem',
+                                background: 'radial-gradient(circle, rgba(59, 130, 246, 0.15) 0%, transparent 70%)',
+                                borderRadius: '3rem', blur: '40px'
+                            }} />
+                            <div style={{
+                                position: 'relative', background: 'white',
+                                padding: '2.5rem', borderRadius: '4rem',
+                                display: 'flex', flexDirection: 'column',
+                                alignItems: 'center', gap: '2rem',
+                                boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5)'
+                            }}>
+                                <div style={{
+                                    padding: '1.5rem', background: '#f8fafc',
+                                    borderRadius: '2rem', border: '2px solid #e2e8f0',
+                                    width: '100%', aspectRatio: '1/1',
+                                    display: 'flex', alignItems: 'center', justifyContent: 'center'
+                                }}>
+                                    <QRCode
+                                        value={`${PRODUCTION_URL}/app?connect=${KIOSK_ID}`}
+                                        size={220}
+                                        level="H"
+                                        style={{ width: '100%', height: 'auto' }}
+                                    />
+                                </div>
+                                <div style={{ textAlign: 'center', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                                    <div style={{ fontSize: '1.5rem', fontWeight: 'bold', color: '#001c38' }}>Terminal {KIOSK_ID}</div>
+                                    <button
+                                        onClick={() => setStatus('MANUAL_ENTRY')}
+                                        style={{
+                                            padding: '0.8rem 2rem', background: '#2563eb',
+                                            color: 'white', borderRadius: '9999px',
+                                            fontSize: '11px', fontWeight: '900',
+                                            letterSpacing: '0.15em', textTransform: 'uppercase',
+                                            boxShadow: '0 10px 15px -3px rgba(37, 99, 235, 0.4)',
+                                            border: 'none', transition: 'transform 0.2s'
+                                        }}
+                                    >
+                                        Enter Code Instead
+                                    </button>
+                                </div>
                             </div>
                         </div>
-                    </div>
+                    </motion.div>
                 )}
 
                 {/* CONNECTED STATE */}
                 {status === 'CONNECTED' && (
-                    <div key="connected-content" className="flex flex-col items-center gap-16 text-center">
-                        <div className="relative">
-                            <div className="w-64 h-64 bg-blue-500/10 border border-blue-500/30 rounded-[80px] flex items-center justify-center text-blue-300 shadow-[0_0_60px_rgba(59,130,246,0.2)]">
+                    <div key="connected-content" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4rem', textAlign: 'center' }}>
+                        <div style={{ position: 'relative' }}>
+                            <div style={{ width: '16rem', height: '16rem', backgroundColor: 'rgba(59,130,246,0.1)', border: '1px solid rgba(59,130,246,0.3)', borderRadius: '80px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#93c5fd', boxShadow: '0 0 60px rgba(59,130,246,0.2)' }}>
                                 <Users size={120} strokeWidth={0.5} />
                             </div>
-                            <div className="absolute -bottom-4 -right-4 w-20 h-20 bg-green-500 rounded-full border-[10px] border-[#000d1a] flex items-center justify-center shadow-2xl">
-                                <CheckCircle2 size={40} className="text-white" />
+                            <div style={{ position: 'absolute', bottom: '-1rem', right: '-1rem', width: '5rem', height: '5rem', backgroundColor: '#22c55e', borderRadius: '50%', border: '10px solid #000d1a', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.25)' }}>
+                                <CheckCircle2 size={40} style={{ color: 'white' }} />
                             </div>
                         </div>
-                        <div className="space-y-6">
-                            <h2 className="text-8xl font-bold tracking-tighter">
-                                Welcome, <br /><span className="text-blue-300">User!</span>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+                            <h2 style={{ fontSize: '6rem', fontWeight: 'bold', letterSpacing: '-0.05em' }}>
+                                Welcome, <br /><span style={{ color: '#93c5fd' }}>User!</span>
                             </h2>
-                            <p className="text-2xl text-white/30 font-medium">Session Active. Continue on your mobile device.</p>
+                            <p style={{ fontSize: '1.5rem', color: 'rgba(255,255,255,0.3)', fontWeight: '500' }}>Session Active. Continue on your mobile device.</p>
                         </div>
                         <button
                             onClick={resetKiosk}
-                            className="mt-8 px-8 py-4 bg-white/5 border border-white/10 rounded-2xl text-white/40 text-xs font-black uppercase tracking-widest hover:bg-red-500/10 transition-all"
+                            style={{ marginTop: '2rem', padding: '1rem 2rem', backgroundColor: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '1rem', color: 'rgba(255,255,255,0.4)', fontSize: '0.75rem', fontWeight: '900', textTransform: 'uppercase', letterSpacing: '0.1em' }}
                         >
                             End Session
                         </button>
                     </div>
                 )}
 
-                {/* ADJUST PRINT STATE */}
-                {status === 'ADJUST_PRINT' && (
-                    <div key="adjust-content" className="w-full max-w-5xl flex gap-12 items-start">
-                        {/* Left: Preview */}
-                        <div className="flex-1 space-y-4">
-                            <div className="bg-white/5 border border-white/10 rounded-[40px] aspect-[1/1.4] overflow-hidden relative flex items-center justify-center shadow-2xl">
-                                {isPreviewLoading && (
-                                    <div className="absolute inset-0 bg-black/40 flex items-center justify-center z-10 backdrop-blur-sm">
-                                        <Loader2 className="animate-spin text-blue-400" size={60} />
-                                    </div>
-                                )}
-                                {previewUrl ? (
-                                    <img src={previewUrl} alt="Print Preview" className="w-full h-full object-contain" />
-                                ) : (
-                                    <div className="text-white/20 text-center">
-                                        <FileText size={100} strokeWidth={0.5} className="mx-auto mb-4" />
-                                        <p>Generating Preview...</p>
-                                    </div>
-                                )}
-                            </div>
-                            <p className="text-center text-white/30 text-xs font-black uppercase tracking-widest">Monochrome Driver Preview (1:1)</p>
-                        </div>
 
-                        {/* Right: Controls */}
-                        <div className="w-[340px] space-y-3 bg-white/5 p-5 rounded-[24px] border border-white/10 self-center h-full max-h-[90vh] overflow-y-auto">
-                            <h2 className="text-2xl font-bold tracking-tighter">Adjust <span className="text-blue-400">Layout</span></h2>
-                            
-                            <div className="space-y-3">
-                                {/* Scale */}
-                                <div className="space-y-1">
-                                    <div className="flex justify-between text-[10px] font-black uppercase tracking-widest text-white/40">
-                                        <span>Scale</span>
-                                        <div className="flex gap-4 items-center">
-                                            <button 
-                                                onClick={() => { setPrintScale(0.90); setPrintOffsetX(0); setPrintOffsetY(0); setPrintRotation(0); }}
-                                                className="text-[9px] bg-blue-500/20 text-blue-400 px-2 py-0.5 rounded border border-blue-500/30 hover:bg-blue-500/40 transition-all"
-                                            >
-                                                Fit
-                                            </button>
-                                            <span className="text-blue-400">{Math.round(printScale * 100)}%</span>
-                                        </div>
-                                    </div>
-                                    <input 
-                                        type="range" min="0.5" max="1.5" step="0.01" 
-                                        value={printScale} 
-                                        onChange={(e) => setPrintScale(parseFloat(e.target.value))}
-                                        className="w-full accent-blue-500"
-                                    />
-                                </div>
-
-                                {/* Rotation */}
-                                <div className="space-y-2">
-                                    <span className="text-[10px] font-black uppercase tracking-widest text-white/40">Rotation</span>
-                                    <div className="flex gap-1">
-                                        {[0, 90, 180, 270].map(deg => (
-                                            <button 
-                                                key={deg}
-                                                onClick={() => setPrintRotation(deg)}
-                                                className={`flex-1 py-2 text-[11px] rounded-lg font-bold transition-all ${printRotation === deg ? 'bg-blue-500 text-white' : 'bg-white/5 text-white/40'}`}
-                                            >
-                                                {deg}°
-                                            </button>
-                                        ))}
-                                    </div>
-                                </div>
-
-                                {/* Offsets */}
-                                <div className="grid grid-cols-2 gap-2">
-                                    <div className="space-y-2">
-                                        <span className="text-[10px] font-black uppercase tracking-widest text-white/40 text-center block">X-Offset</span>
-                                        <div className="flex gap-1">
-                                            <button onClick={() => setPrintOffsetX(p => p - 10)} className="flex-1 bg-white/5 py-2 text-xs rounded-lg hover:bg-white/10">-</button>
-                                            <button onClick={() => setPrintOffsetX(p => p + 10)} className="flex-1 bg-white/5 py-2 text-xs rounded-lg hover:bg-white/10">+</button>
-                                        </div>
-                                    </div>
-                                    <div className="space-y-2">
-                                        <span className="text-[10px] font-black uppercase tracking-widest text-white/40 text-center block">Y-Offset</span>
-                                        <div className="flex gap-1">
-                                            <button onClick={() => setPrintOffsetY(p => p - 10)} className="flex-1 bg-white/5 py-2 text-xs rounded-lg hover:bg-white/10">-</button>
-                                            <button onClick={() => setPrintOffsetY(p => p + 10)} className="flex-1 bg-white/5 py-2 text-xs rounded-lg hover:bg-white/10">+</button>
-                                        </div>
-                                    </div>
-                                </div>
-
-                                {/* HP Mode Selector */}
-                                {usbDeviceRef.current?.vendorId === 1008 && (
-                                    <div className="space-y-2 border-t border-white/10 pt-4">
-                                        <span className="text-[10px] font-black uppercase tracking-widest text-blue-400 block">HP Protocol (Troubleshoot)</span>
-                                        <div className="grid grid-cols-4 gap-1">
-                                            {(['AUTO', 'XQX', 'PCL', 'PDF'] as const).map(m => (
-                                                <button 
-                                                    key={m}
-                                                    onClick={() => setHpMode(m)}
-                                                    className={`py-1.5 rounded-lg text-[9px] font-bold transition-all ${hpMode === m ? 'bg-blue-500 text-white' : 'bg-white/5 text-white/40 border border-white/5'}`}
-                                                >
-                                                    {m}
-                                                </button>
-                                            ))}
-                                        </div>
-                                        <p className="text-[8px] text-white/30 italic">Try "PDF" or "PCL" if printer is silent.</p>
-                                    </div>
-                                )}
-                            </div>
-
-                            <div className="pt-2 space-y-2">
-                                <button 
-                                    onClick={handlePrintWithPrintHand}
-                                    className="w-full py-5 bg-blue-600 rounded-xl text-lg font-black shadow-[0_10px_20px_-5px_rgba(37,99,235,0.4)] active:scale-95 transition-all border-2 border-blue-400"
-                                >
-                                    Print Now (PrintHand)
-                                </button>
-                                
-                                <div className="flex gap-2">
-                                    <button 
-                                        onClick={handleConfirmPrint}
-                                        className="flex-1 py-3 bg-white/5 border border-white/10 rounded-xl text-[10px] font-bold text-white/40 hover:bg-white/10 transition-all uppercase tracking-widest"
-                                    >
-                                        Direct Driver (Beta)
-                                    </button>
-                                    <button 
-                                        onClick={resetKiosk}
-                                        className="flex-1 py-3 bg-white/5 text-white/40 text-[10px] font-bold rounded-xl hover:bg-red-500/10 hover:text-red-400 transition-all uppercase tracking-widest"
-                                    >
-                                        Cancel
-                                    </button>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                )}
                 {/* PRINTING STATE */}
                 {status === 'PRINTING' && (
-                    <div key="printing-content" className="w-full max-w-2xl space-y-12 text-center">
-                        <div className="flex justify-center">
-                            <div className="p-10 bg-blue-500/10 rounded-full border border-blue-500/20 text-blue-400">
-                                <PrinterIcon size={120} className="animate-bounce" />
+                    <div key="printing-content" style={{ width: '100%', maxWidth: '42rem', display: 'flex', flexDirection: 'column', gap: '3rem', textAlign: 'center', alignItems: 'center' }}>
+                        <div style={{ display: 'flex', justifyContent: 'center' }}>
+                            <div style={{ padding: '2.5rem', backgroundColor: 'rgba(59,130,246,0.1)', borderRadius: '50%', border: '1px solid rgba(59,130,246,0.2)', color: '#60a5fa' }}>
+                                <PrinterIcon size={120} />
                             </div>
                         </div>
-                        <div className="space-y-4">
-                            <h2 className="text-6xl font-black text-white tracking-tighter uppercase">Preparing Document</h2>
-                            <div className="flex flex-col items-center gap-2">
-                                <div className="w-full h-3 bg-white/10 rounded-full overflow-hidden">
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                            <h2 style={{ fontSize: '3.75rem', fontWeight: '900', color: 'white', letterSpacing: '-0.05em', textTransform: 'uppercase' }}>Preparing Document</h2>
+                            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.5rem' }}>
+                                <div style={{ width: '100%', height: '0.75rem', backgroundColor: 'rgba(255,255,255,0.1)', borderRadius: '9999px', overflow: 'hidden' }}>
                                     <motion.div
-                                        className="h-full bg-blue-500"
+                                        style={{ height: '100%', backgroundColor: '#3b82f6' }}
                                         initial={{ width: 0 }}
                                         animate={{ width: `${progress}%` }}
                                     />
                                 </div>
-                                <span className="text-blue-400 font-mono font-bold text-2xl animate-pulse">
+                                <span style={{ color: '#60a5fa', fontFamily: 'monospace', fontWeight: 'bold', fontSize: '1.5rem' }}>
                                     {progress}% Processing...
                                 </span>
                             </div>
                         </div>
-                        <p className="text-white/30 tracking-widest uppercase text-xs font-black">Connecting to Terminal Hardware</p>
-                        <div className="pt-4 flex justify-center">
+                        <p style={{ color: 'rgba(255,255,255,0.3)', letterSpacing: '0.1em', textTransform: 'uppercase', fontSize: '0.75rem', fontWeight: '900' }}>Connecting to Terminal Hardware</p>
+                        <div style={{ paddingTop: '1rem', display: 'flex', justifyContent: 'center' }}>
                             <button
                                 onClick={resetKiosk}
-                                className="px-10 py-4 bg-red-500/10 border border-red-500/20 text-red-400 rounded-full font-bold hover:bg-red-500/20 transition-all active:scale-95"
+                                style={{ padding: '1rem 2.5rem', backgroundColor: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.2)', color: '#f87171', borderRadius: '9999px', fontWeight: 'bold' }}
                             >
                                 Force Reset / Cancel
                             </button>
@@ -1111,37 +1034,37 @@ const AndroidKioskScreen: React.FC = () => {
 
                 {/* MANUAL ENTRY STATE */}
                 {status === 'MANUAL_ENTRY' && (
-                    <div key="manual-content" className="w-full max-w-sm bg-white/5 p-8 rounded-[40px] border border-white/10">
-                        <div className="flex justify-center gap-2 mb-8">
+                    <div key="manual-content" style={{ width: '100%', maxWidth: '24rem', backgroundColor: 'rgba(255,255,255,0.05)', padding: '2rem', borderRadius: '40px', border: '1px solid rgba(255,255,255,0.1)' }}>
+                        <div style={{ display: 'flex', justifyContent: 'center', gap: '0.5rem', marginBottom: '2rem' }}>
                             {[...Array(5)].map((_, i) => (
-                                <div key={i} className="w-12 h-16 bg-black/40 border-2 border-white/10 rounded-xl flex items-center justify-center text-3xl font-bold text-blue-300">
+                                <div key={i} style={{ width: '3rem', height: '4rem', backgroundColor: 'rgba(0,0,0,0.4)', border: '2px solid rgba(255,255,255,0.1)', borderRadius: '0.75rem', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.875rem', fontWeight: 'bold', color: '#93c5fd' }}>
                                     {inputCode[i] || ''}
                                 </div>
                             ))}
                         </div>
-                        <div className="grid grid-cols-3 gap-3">
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.75rem' }}>
                             {[1, 2, 3, 4, 5, 6, 7, 8, 9, 0].map(n => (
-                                <button key={n} onClick={() => inputCode.length < 5 && setInputCode(p => p + n)} className="h-14 bg-white/5 rounded-xl text-xl font-bold text-white active:scale-95 hover:bg-white/10 transition-all">{n}</button>
+                                <button key={n} onClick={() => inputCode.length < 5 && setInputCode(p => p + n)} style={{ height: '3.5rem', backgroundColor: 'rgba(255,255,255,0.05)', borderRadius: '0.75rem', fontSize: '1.25rem', fontWeight: 'bold', color: 'white', border: 'none' }}>{n}</button>
                             ))}
-                            <button onClick={resetKiosk} className="h-14 bg-red-500/10 rounded-xl text-red-400 font-bold active:scale-95">CLR</button>
-                            <button onClick={handleManualEntry} className="h-14 bg-blue-600 rounded-xl text-white font-bold active:scale-95 disabled:opacity-50 disabled:active:scale-100" disabled={inputCode.length < 5}>OK</button>
+                            <button onClick={resetKiosk} style={{ height: '3.5rem', backgroundColor: 'rgba(239,68,68,0.1)', borderRadius: '0.75rem', color: '#f87171', fontWeight: 'bold', border: 'none' }}>CLR</button>
+                            <button onClick={handleManualEntry} disabled={inputCode.length < 5} style={{ height: '3.5rem', backgroundColor: inputCode.length < 5 ? 'rgba(37,99,235,0.3)' : '#2563eb', borderRadius: '0.75rem', color: 'white', fontWeight: 'bold', border: 'none', opacity: inputCode.length < 5 ? 0.5 : 1 }}>OK</button>
                         </div>
                     </div>
                 )}
 
                 {/* COMPLETE STATE */}
                 {status === 'COMPLETE' && (
-                    <div key="complete-content" className="flex flex-col items-center gap-8 text-center px-12">
-                        <div className="w-56 h-56 bg-green-500/10 rounded-full flex items-center justify-center border-4 border-green-500/20 text-green-400 shadow-[0_0_80px_rgba(34,197,94,0.3)]">
+                    <div key="complete-content" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '2rem', textAlign: 'center', padding: '0 3rem' }}>
+                        <div style={{ width: '14rem', height: '14rem', backgroundColor: 'rgba(34,197,94,0.1)', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '4px solid rgba(34,197,94,0.2)', color: '#4ade80', boxShadow: '0 0 80px rgba(34,197,94,0.3)' }}>
                             <CheckCircle2 size={120} />
                         </div>
-                        <div className="space-y-4">
-                            <h2 className="text-7xl font-black text-white tracking-tighter uppercase italic text-center">Printing Successful</h2>
-                            <p className="text-4xl text-white/70 font-bold text-center">Your documents are ready at the tray.</p>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                            <h2 style={{ fontSize: '4.5rem', fontWeight: '900', color: 'white', letterSpacing: '-0.05em', textTransform: 'uppercase', fontStyle: 'italic', textAlign: 'center' }}>Printing Successful</h2>
+                            <p style={{ fontSize: '2.25rem', color: 'rgba(255,255,255,0.7)', fontWeight: 'bold', textAlign: 'center' }}>Your documents are ready at the tray.</p>
                         </div>
                         <button
                             onClick={resetKiosk}
-                            className="mt-4 px-12 py-6 bg-white/10 border-2 border-white/20 rounded-full text-xl font-bold hover:bg-white/20 transition-all active:scale-95 text-white"
+                            style={{ marginTop: '1rem', padding: '1.5rem 3rem', backgroundColor: 'rgba(255,255,255,0.1)', border: '2px solid rgba(255,255,255,0.2)', borderRadius: '9999px', fontSize: '1.25rem', fontWeight: 'bold', color: 'white' }}
                         >
                             Back to Home ({resetCountdown}s)
                         </button>
@@ -1150,29 +1073,29 @@ const AndroidKioskScreen: React.FC = () => {
 
                 {/* ERROR STATE */}
                 {status === 'ERROR' && (
-                    <div key="error-content" className="flex flex-col items-center gap-8 text-center">
-                        <div className="w-40 h-40 bg-red-500/10 rounded-full flex items-center justify-center border-2 border-red-500/20 text-red-400">
+                    <div key="error-content" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '2rem', textAlign: 'center' }}>
+                        <div style={{ width: '10rem', height: '10rem', backgroundColor: 'rgba(239,68,68,0.1)', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '2px solid rgba(239,68,68,0.2)', color: '#f87171' }}>
                             <AlertTriangle size={80} />
                         </div>
-                        <h2 className="text-6xl font-bold text-white">Error</h2>
-                        <p className="text-xl text-white/30 truncate max-w-lg">{errorMsg || 'Something went wrong. Try again.'}</p>
-                        <button onClick={resetKiosk} className="mt-4 px-10 py-4 bg-white/5 border border-white/10 rounded-full font-bold">Restart</button>
+                        <h2 style={{ fontSize: '3.75rem', fontWeight: 'bold', color: 'white' }}>Error</h2>
+                        <p style={{ fontSize: '1.25rem', color: 'rgba(255,255,255,0.3)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '32rem' }}>{errorMsg || 'Something went wrong. Try again.'}</p>
+                        <button onClick={resetKiosk} style={{ marginTop: '1rem', padding: '1rem 2.5rem', backgroundColor: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '9999px', fontWeight: 'bold', color: 'white' }}>Restart</button>
                     </div>
                 )}
             </main>
 
             {/* --- DEBUG OVERLAY (Repositioned to bottom small strip) --- */}
-            <div className="bg-black/80 border-t border-white/10 p-2 z-50">
-                <div className="flex items-center gap-3 px-2 overflow-x-auto whitespace-nowrap scrollbar-hide">
-                    <div className="flex items-center gap-2">
-                        <div className={`w-1.5 h-1.5 rounded-full ${status === 'IDLE' ? 'bg-green-500' : 'bg-blue-500'}`} />
-                        <span className="text-[9px] font-mono text-white/60 uppercase">{status} | v5.9.26</span>
+            <div style={{ backgroundColor: 'rgba(0,0,0,0.8)', borderTop: '1px solid rgba(255,255,255,0.1)', padding: '0.5rem', zIndex: 50 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '0 0.5rem', overflowX: 'auto', whiteSpace: 'nowrap' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                        <div style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: status === 'IDLE' ? '#22c55e' : '#3b82f6' }} />
+                        <span style={{ fontSize: '9px', fontFamily: 'monospace', color: 'rgba(255,255,255,0.6)', textTransform: 'uppercase' }}>{status} | v6.0.0</span>
                     </div>
-                    <span className="text-[9px] font-mono text-white/30">|</span>
+                    <span style={{ fontSize: '9px', fontFamily: 'monospace', color: 'rgba(255,255,255,0.3)' }}>|</span>
                     {debugLogs.slice(0, 3).map((log, i) => (
-                        <span key={i} className="text-[9px] font-mono text-green-400/50">{log.substring(log.indexOf(']') + 1)}</span>
+                        <span key={i} style={{ fontSize: '9px', fontFamily: 'monospace', color: 'rgba(74,222,128,0.5)' }}>{log.substring(log.indexOf(']') + 1)}</span>
                     ))}
-                    <span className="text-[9px] font-mono text-white/30 ml-auto uppercase tracking-tighter">
+                    <span style={{ fontSize: '9px', fontFamily: 'monospace', color: 'rgba(255,255,255,0.3)', marginLeft: 'auto', textTransform: 'uppercase', letterSpacing: '-0.05em' }}>
                         Kiosk {KIOSK_ID} • {debugLogs.length} L
                     </span>
                 </div>
