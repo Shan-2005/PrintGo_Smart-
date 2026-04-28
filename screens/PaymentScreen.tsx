@@ -249,106 +249,101 @@ const PaymentScreen: React.FC<PaymentScreenProps> = ({ settings, amount, onPayme
   };
 
   return (
-    <div className="flex flex-col gap-6 max-w-xl mx-auto w-full pb-10">
-      <div className="flex items-center gap-2">
-        <button
-          onClick={onBack}
-          disabled={paymentState !== 'READY' && paymentState !== 'ERROR'}
-          className="p-2 hover:bg-[#f1f3f9] rounded-full transition-colors disabled:opacity-30"
+    <>
+      {/* ── Scrollable content area ── */}
+      <div className="flex flex-col gap-5 max-w-xl mx-auto w-full pb-28 px-1">
+
+        {/* Header */}
+        <div className="flex items-center gap-2">
+          <button
+            onClick={onBack}
+            disabled={paymentState !== 'READY' && paymentState !== 'ERROR'}
+            className="p-2 hover:bg-[#f1f3f9] rounded-full transition-colors disabled:opacity-30"
+          >
+            <ChevronLeft className="text-[#44474e]" />
+          </button>
+          <h2 className="text-2xl font-google-sans font-medium text-[#1a1c1e]">Payment Checkout</h2>
+        </div>
+
+        {/* Card */}
+        <div className="bg-white rounded-[40px] border border-[#e1e2ec] overflow-hidden flex flex-col shadow-sm">
+          {/* Amount */}
+          <div className="p-8 text-center bg-[#f8f9fa] border-b border-[#e1e2ec]">
+            <p className="text-[#74777f] text-xs uppercase tracking-[0.2em] font-bold mb-2">Total Amount</p>
+            <h3 className="text-5xl font-google-sans font-bold text-[#001c38]">₹{amount}</h3>
+          </div>
+
+          {/* Dynamic content */}
+          <AnimatePresence mode="wait">
+            {paymentState !== 'READY' ? (
+              <motion.div key={paymentState}>{renderStateContent()}</motion.div>
+            ) : (
+              <motion.div key="ready" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="p-6">
+                {/* Payment icons */}
+                <div className="flex items-center justify-center gap-5 mb-6">
+                  {[
+                    { icon: <Smartphone size={20} className="text-[#005fb0]" />, label: 'UPI' },
+                    { icon: <CreditCard size={20} className="text-[#005fb0]" />, label: 'Card' },
+                    { icon: <QrCode size={20} className="text-[#005fb0]" />, label: 'QR' },
+                    { icon: <IndianRupee size={20} className="text-[#005fb0]" />, label: 'NetBank' },
+                  ].map(({ icon, label }) => (
+                    <div key={label} className="flex flex-col items-center gap-1.5 text-[#74777f]">
+                      <div className="w-12 h-12 bg-[#f1f3f9] rounded-2xl flex items-center justify-center">{icon}</div>
+                      <span className="text-[10px] font-bold uppercase tracking-wider">{label}</span>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Order summary */}
+                <div className="bg-[#f8f9fa] p-4 rounded-[20px] space-y-3">
+                  <div className="flex justify-between text-sm">
+                    <span className="text-[#74777f] font-medium">Color Mode</span>
+                    <span className="font-semibold text-[#1a1c1e]">{settings.colorMode === 'COLOR' ? 'Full Color' : 'Black & White'}</span>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-[#74777f] font-medium">Paper Size</span>
+                    <span className="font-semibold text-[#1a1c1e]">{settings.paperSize}</span>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-[#74777f] font-medium">Copies</span>
+                    <span className="font-semibold text-[#1a1c1e]">{settings.copies}</span>
+                  </div>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
+
+        {/* Security badge */}
+        <div className="flex flex-col items-center gap-2 text-[#74777f]">
+          <div className="flex items-center gap-2 text-xs font-medium bg-[#f1f3f9] px-5 py-2 rounded-full">
+            <ShieldCheck size={13} className="text-green-600" />
+            Secured by Razorpay • PCI-DSS Compliant
+          </div>
+        </div>
+      </div>
+
+      {/* ── Sticky Pay Button — ALWAYS visible at bottom ── */}
+      {paymentState === 'READY' && (
+        <div
+          className="fixed bottom-0 left-0 right-0 z-50 px-4 py-4 bg-white/90 backdrop-blur-lg border-t border-[#e1e2ec]"
+          style={{ paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 16px)' }}
         >
-          <ChevronLeft className="text-[#44474e]" />
-        </button>
-        <h2 className="text-2xl font-google-sans font-medium text-[#1a1c1e]">Payment Checkout</h2>
-      </div>
-
-      <div className="bg-white rounded-[40px] border border-[#e1e2ec] overflow-hidden flex flex-col shadow-sm relative">
-        {/* Header - Amount Display */}
-        <div className="p-10 text-center bg-[#f8f9fa] border-b border-[#e1e2ec]">
-          <p className="text-[#74777f] text-xs uppercase tracking-[0.2em] font-bold mb-2">Total Amount</p>
-          <h3 className="text-6xl font-google-sans font-bold text-[#001c38]">₹{amount}</h3>
-        </div>
-
-        {/* Dynamic Content Area */}
-        <AnimatePresence mode="wait">
-          {paymentState !== 'READY' ? (
-            <motion.div key={paymentState}>
-              {renderStateContent()}
-            </motion.div>
-          ) : (
-            <motion.div
-              key="ready"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              className="p-8"
+          <div className="max-w-xl mx-auto">
+            <button
+              onClick={openRazorpayCheckout}
+              className="w-full py-5 rounded-[24px] font-google-sans font-medium text-lg transition-all flex items-center justify-center gap-3 bg-[#005fb0] text-white hover:bg-[#004a8a] shadow-xl shadow-blue-200 active:scale-[0.98]"
             >
-              {/* Payment Method Icons */}
-              <div className="flex items-center justify-center gap-6 mb-8">
-                <div className="flex flex-col items-center gap-2 text-[#74777f]">
-                  <div className="w-14 h-14 bg-[#f1f3f9] rounded-2xl flex items-center justify-center">
-                    <Smartphone size={22} className="text-[#005fb0]" />
-                  </div>
-                  <span className="text-[10px] font-bold uppercase tracking-wider">UPI</span>
-                </div>
-                <div className="flex flex-col items-center gap-2 text-[#74777f]">
-                  <div className="w-14 h-14 bg-[#f1f3f9] rounded-2xl flex items-center justify-center">
-                    <CreditCard size={22} className="text-[#005fb0]" />
-                  </div>
-                  <span className="text-[10px] font-bold uppercase tracking-wider">Card</span>
-                </div>
-                <div className="flex flex-col items-center gap-2 text-[#74777f]">
-                  <div className="w-14 h-14 bg-[#f1f3f9] rounded-2xl flex items-center justify-center">
-                    <QrCode size={22} className="text-[#005fb0]" />
-                  </div>
-                  <span className="text-[10px] font-bold uppercase tracking-wider">QR</span>
-                </div>
-                <div className="flex flex-col items-center gap-2 text-[#74777f]">
-                  <div className="w-14 h-14 bg-[#f1f3f9] rounded-2xl flex items-center justify-center">
-                    <IndianRupee size={22} className="text-[#005fb0]" />
-                  </div>
-                  <span className="text-[10px] font-bold uppercase tracking-wider">NetBank</span>
-                </div>
-              </div>
-
-              {/* Order Summary */}
-              <div className="bg-[#f8f9fa] p-5 rounded-[24px] mb-8 space-y-3">
-                <div className="flex justify-between text-sm">
-                  <span className="text-[#74777f] font-medium">Color Mode</span>
-                  <span className="font-semibold text-[#1a1c1e]">{settings.colorMode === 'COLOR' ? 'Full Color' : 'Black & White'}</span>
-                </div>
-                <div className="flex justify-between text-sm">
-                  <span className="text-[#74777f] font-medium">Paper Size</span>
-                  <span className="font-semibold text-[#1a1c1e]">{settings.paperSize}</span>
-                </div>
-                <div className="flex justify-between text-sm">
-                  <span className="text-[#74777f] font-medium">Copies</span>
-                  <span className="font-semibold text-[#1a1c1e]">{settings.copies}</span>
-                </div>
-              </div>
-
-              {/* Pay Button */}
-              <button
-                onClick={openRazorpayCheckout}
-                className="w-full py-5 rounded-[24px] font-google-sans font-medium text-lg transition-all flex items-center justify-center gap-3 bg-[#005fb0] text-white hover:bg-[#004a8a] shadow-xl shadow-blue-100 active:scale-[0.98]"
-              >
-                <ShieldCheck size={22} />
-                Pay ₹{amount}
-              </button>
-            </motion.div>
-          )}
-        </AnimatePresence>
-      </div>
-
-      <div className="mt-4 flex flex-col items-center gap-4 text-[#74777f]">
-        <div className="flex items-center gap-2 text-xs font-medium bg-[#f1f3f9] px-6 py-2.5 rounded-full">
-          <ShieldCheck size={14} className="text-green-600" />
-          Secured by Razorpay • PCI-DSS Compliant
+              <ShieldCheck size={22} />
+              Pay ₹{amount}
+            </button>
+          </div>
         </div>
-        <p className="text-[10px] text-center max-w-xs leading-relaxed">
-          By clicking pay, you agree to our Terms of Service. Payment processing is handled securely by Razorpay.
-        </p>
-      </div>
-    </div>
+      )}
+    </>
   );
 };
 
 export default PaymentScreen;
+
+
