@@ -326,7 +326,7 @@ const UserPage: React.FC = () => {
                 />
             </div>
 
-            <div className="max-w-5xl mx-auto px-6 py-10 min-h-screen flex flex-col relative">
+            <div className="max-w-xl mx-auto px-5 py-8 relative">
                 {error && (
                     <motion.div
                         initial={{ opacity: 0, y: -20 }}
@@ -372,9 +372,9 @@ const UserPage: React.FC = () => {
                     </div>
                 </header>
 
-                <main className="flex-1 flex flex-col">
+                <main>
                     <AnimatePresence mode="wait">
-                        <motion.div key={currentStep} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="flex-1 flex flex-col">
+                        <motion.div key={currentStep} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }}>
                             {currentStep === AppStep.CONNECT && <ConnectScreen onConnect={handleConnect} onSkip={handleSkipConnect} />}
                             {currentStep === AppStep.UPLOAD && <UploadScreen onFileSelect={handleFileSelect} />}
                             {currentStep === AppStep.OPTIONS && selectedFile && <OptionsScreen file={selectedFile} initialSettings={settings} onProceed={handleProceedToPayment} onBack={() => setCurrentStep(AppStep.UPLOAD)} />}
