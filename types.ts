@@ -46,11 +46,7 @@ export interface FileData {
   file?: File; // The actual file object for uploading
 }
 
-export interface PaymentResult {
-  razorpay_order_id: string;
-  razorpay_payment_id: string;
-  razorpay_signature: string;
-}
+
 
 export interface PrintJob {
   id: string;

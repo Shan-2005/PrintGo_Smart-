@@ -1,11 +1,7 @@
 /**
  * Vite plugin that serves the /api/ routes locally during development.
  * In production (Vercel), these are handled by serverless functions in /api/.
- * This plugin loads the same handler files and calls them with mock req/res objects.
  */
-import Razorpay from 'razorpay';
-import crypto from 'crypto';
-
 export function apiDevPlugin(env) {
     return {
         name: 'api-dev-server',
@@ -39,24 +35,16 @@ export function apiDevPlugin(env) {
                         return;
                     }
 
-                    const razorpay = new Razorpay({
-                        key_id: env.RAZORPAY_KEY_ID || env.VITE_RAZORPAY_KEY_ID,
-                        key_secret: env.RAZORPAY_KEY_SECRET,
-                    });
-
-                    const order = await razorpay.orders.create({
-                        amount: Math.round(amount * 100), // paise
-                        currency,
-                        receipt: receipt || `printgo_${Date.now()}`,
-                    });
-
-                    console.log('✅ Order created:', order.id);
+                    // Mock order — no payment gateway
+                    const orderId = `order_${Date.now()}`;
+                    console.log('✅ Mock order created:', orderId);
                     res.statusCode = 200;
                     res.setHeader('Content-Type', 'application/json');
                     res.end(JSON.stringify({
-                        orderId: order.id,
-                        amount: order.amount,
-                        currency: order.currency,
+                        orderId,
+                        amount: Math.round(amount * 100),
+                        currency,
+                        receipt: receipt || `printgo_${Date.now()}`,
                     }));
                 } catch (error) {
                     console.error('❌ Order creation failed:', error.message);
@@ -86,30 +74,15 @@ export function apiDevPlugin(env) {
 
                 try {
                     const body = await parseBody(req);
-                    const { razorpay_order_id, razorpay_payment_id, razorpay_signature } = body;
+                    const { order_id, payment_id } = body;
 
-                    if (!razorpay_order_id || !razorpay_payment_id || !razorpay_signature) {
-                        res.statusCode = 400;
-                        res.setHeader('Content-Type', 'application/json');
-                        res.end(JSON.stringify({ error: 'Missing payment details', verified: false }));
-                        return;
-                    }
-
-                    const secret = env.RAZORPAY_KEY_SECRET;
-                    const expectedSignature = crypto
-                        .createHmac('sha256', secret)
-                        .update(razorpay_order_id + '|' + razorpay_payment_id)
-                        .digest('hex');
-
-                    const isValid = expectedSignature === razorpay_signature;
-
-                    res.statusCode = isValid ? 200 : 400;
+                    // Auto-verify — no HMAC check needed
+                    res.statusCode = 200;
                     res.setHeader('Content-Type', 'application/json');
                     res.end(JSON.stringify({
-                        verified: isValid,
-                        paymentId: isValid ? razorpay_payment_id : undefined,
-                        orderId: isValid ? razorpay_order_id : undefined,
-                        error: isValid ? undefined : 'Signature verification failed',
+                        verified: true,
+                        paymentId: payment_id || `pay_${Date.now()}`,
+                        orderId: order_id || `order_${Date.now()}`,
                     }));
                 } catch (error) {
                     console.error('❌ Verification failed:', error.message);

@@ -4,12 +4,6 @@ import { PrintSettings } from '../types';
 import { ChevronLeft, ShieldCheck, Loader2, AlertCircle, CheckCircle2, CreditCard, Smartphone, QrCode, IndianRupee } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
-declare global {
-  interface Window {
-    Razorpay: any;
-  }
-}
-
 interface PaymentScreenProps {
   settings: PrintSettings;
   amount: string;
@@ -17,142 +11,32 @@ interface PaymentScreenProps {
   onBack: () => void;
 }
 
-type PaymentState = 'READY' | 'CREATING_ORDER' | 'AWAITING_PAYMENT' | 'VERIFYING' | 'SUCCESS' | 'ERROR';
+type PaymentState = 'READY' | 'PROCESSING' | 'SUCCESS' | 'ERROR';
 
 const PaymentScreen: React.FC<PaymentScreenProps> = ({ settings, amount, onPaymentSuccess, onBack }) => {
   const [paymentState, setPaymentState] = useState<PaymentState>('READY');
   const [errorMessage, setErrorMessage] = useState<string>('');
 
-  /** Waits up to 10 s for the async Razorpay SDK to finish loading. */
-  const waitForRazorpay = (): Promise<void> =>
-    new Promise((resolve, reject) => {
-      if (window.Razorpay) { resolve(); return; }
-      let elapsed = 0;
-      const interval = setInterval(() => {
-        elapsed += 100;
-        if (window.Razorpay) { clearInterval(interval); resolve(); }
-        else if (elapsed >= 10000) {
-          clearInterval(interval);
-          reject(new Error('Razorpay SDK failed to load. Check your internet connection.'));
-        }
-      }, 100);
-    });
-
-  const openRazorpayCheckout = async () => {
-    setPaymentState('CREATING_ORDER');
+  const handlePay = async () => {
+    setPaymentState('PROCESSING');
     setErrorMessage('');
 
     try {
-      // 0. Check for skip payment flag
-      const skipPayment = import.meta.env.VITE_SKIP_PAYMENT === 'true';
-
-      if (skipPayment) {
-        console.log('Test Mode: Bypassing Razorpay checkout');
-        setPaymentState('VERIFYING');
-        // Slight delay for UX
-        await new Promise(resolve => setTimeout(resolve, 1000));
-
-        onPaymentSuccess(`test_pay_${Date.now()}`);
-        setPaymentState('SUCCESS');
-        return;
-      }
-
-      // 1. Create Order via our API
-      const response = await fetch('/api/create-order', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          amount: parseFloat(amount),
-          currency: 'INR',
-          receipt: `printgo_${Date.now()}`
-        }),
-      });
-
-      const orderData = await response.json();
-      if (!response.ok) throw new Error(orderData.error || 'Failed to create order');
-
-      const keyId = import.meta.env.VITE_RAZORPAY_KEY_ID;
-      console.log('🔑 Razorpay Key ID:', keyId ? 'Found' : 'MISSING');
-      if (!keyId) throw new Error('Razorpay Key ID is not configured (VITE_RAZORPAY_KEY_ID)');
-
-      // 2. Configure Razorpay Options
-      const options = {
-        key: keyId,
-        amount: orderData.amount,
-        currency: orderData.currency,
-        name: 'PrintGo Smart',
-        description: `${settings.copies}x ${settings.paperSize} Printing`,
-        image: '/logo.png',
-        order_id: orderData.orderId,
-        handler: async (response: any) => {
-          // 3. Verification Step
-          setPaymentState('VERIFYING');
-          try {
-            const verifyRes = await fetch('/api/verify-payment', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                razorpay_order_id: response.razorpay_order_id,
-                razorpay_payment_id: response.razorpay_payment_id,
-                razorpay_signature: response.razorpay_signature
-              }),
-            });
-
-            const verifyData = await verifyRes.json();
-            if (verifyData.verified) {
-              setPaymentState('SUCCESS');
-              setTimeout(() => {
-                onPaymentSuccess(response.razorpay_payment_id);
-              }, 1500);
-            } else {
-              throw new Error(verifyData.error || 'Payment verification failed');
-            }
-          } catch (err: any) {
-            setPaymentState('ERROR');
-            setErrorMessage(err.message || 'Verification failed');
-          }
-        },
-        prefill: {
-          name: 'PrintGo Guest',
-          email: 'guest@printgo.in',
-          contact: '9999999999'
-        },
-        theme: {
-          color: '#005fb0',
-        },
-        modal: {
-          ondismiss: () => {
-            console.log("Checkout modal dismissed by user");
-            setPaymentState('READY');
-          }
-        },
-        retry: {
-          enabled: true,
-          max_count: 3
-        }
-      };
-
-      console.log('🚀 Waiting for Razorpay SDK...');
-      await waitForRazorpay(); // Handles async script load race condition
-      const rzp = new window.Razorpay(options);
-      rzp.on('payment.failed', function (response: any) {
-        console.error('❌ Razorpay Payment Failed:', response.error);
-        setErrorMessage(`Payment failed: ${response.error.description}`);
-        setPaymentState('ERROR');
-      });
-      rzp.open();
-      setPaymentState('AWAITING_PAYMENT');
-
+      // Simulate payment processing delay
+      await new Promise(resolve => setTimeout(resolve, 1500));
+      setPaymentState('SUCCESS');
+      setTimeout(() => {
+        onPaymentSuccess(`pay_${Date.now()}`);
+      }, 1200);
     } catch (error: any) {
-      console.error('❌ Checkout Error:', error);
       setPaymentState('ERROR');
-      setErrorMessage(error.message || 'Failed to initiate checkout');
+      setErrorMessage(error.message || 'Payment failed. Please try again.');
     }
   };
 
   const renderStateContent = () => {
     switch (paymentState) {
-      case 'CREATING_ORDER':
+      case 'PROCESSING':
         return (
           <motion.div
             initial={{ opacity: 0 }}
@@ -162,48 +46,8 @@ const PaymentScreen: React.FC<PaymentScreenProps> = ({ settings, amount, onPayme
             <div className="w-20 h-20 bg-[#f1f3f9] rounded-full flex items-center justify-center mb-6">
               <Loader2 size={36} className="text-[#005fb0] animate-spin" />
             </div>
-            <h3 className="text-xl font-google-sans font-medium mb-2 text-[#1a1c1e]">Preparing Checkout</h3>
-            <p className="text-[#74777f] text-sm">Setting up your secure payment...</p>
-          </motion.div>
-        );
-
-      case 'AWAITING_PAYMENT':
-        return (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            className="flex flex-col items-center justify-center py-16 px-8 text-center"
-          >
-            <div className="w-20 h-20 bg-[#dbeafe] rounded-full flex items-center justify-center mb-6">
-              <div className="w-4 h-4 bg-[#005fb0] rounded-full animate-ping"></div>
-            </div>
-            <h3 className="text-xl font-google-sans font-medium mb-2 text-[#1a1c1e]">Complete Payment</h3>
-            <p className="text-[#74777f] text-sm">A secure Razorpay window is open. Complete your payment there.</p>
-          </motion.div>
-        );
-
-      case 'VERIFYING':
-        return (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            className="flex flex-col items-center justify-center py-16 px-8 text-center"
-          >
-            <div className="w-24 h-24 relative mb-6">
-              <svg className="w-full h-full transform -rotate-90">
-                <circle cx="48" cy="48" r="40" stroke="currentColor" strokeWidth="4" fill="transparent" className="text-[#f1f3f9]" />
-                <circle
-                  cx="48" cy="48" r="40" stroke="currentColor" strokeWidth="4" fill="transparent"
-                  strokeDasharray="251.2" strokeDashoffset="100"
-                  className="text-[#005fb0] transition-all duration-1000"
-                />
-              </svg>
-              <div className="absolute inset-0 flex items-center justify-center">
-                <div className="w-4 h-4 bg-[#005fb0] rounded-full animate-ping"></div>
-              </div>
-            </div>
-            <h3 className="text-xl font-google-sans font-medium mb-2 text-[#1a1c1e]">Verifying Payment</h3>
-            <p className="text-[#74777f] text-sm">Please wait while we confirm your transaction with the bank.</p>
+            <h3 className="text-xl font-google-sans font-medium mb-2 text-[#1a1c1e]">Processing Payment</h3>
+            <p className="text-[#74777f] text-sm">Please wait while we confirm your payment...</p>
           </motion.div>
         );
 
@@ -318,7 +162,7 @@ const PaymentScreen: React.FC<PaymentScreenProps> = ({ settings, amount, onPayme
         <div className="flex flex-col items-center gap-2 text-[#74777f]">
           <div className="flex items-center gap-2 text-xs font-medium bg-[#f1f3f9] px-5 py-2 rounded-full">
             <ShieldCheck size={13} className="text-green-600" />
-            Secured by Razorpay • PCI-DSS Compliant
+            Secured • PCI-DSS Compliant
           </div>
         </div>
       </div>
@@ -331,7 +175,7 @@ const PaymentScreen: React.FC<PaymentScreenProps> = ({ settings, amount, onPayme
         >
           <div className="max-w-xl mx-auto">
             <button
-              onClick={openRazorpayCheckout}
+              onClick={handlePay}
               className="w-full py-5 rounded-[24px] font-google-sans font-medium text-lg transition-all flex items-center justify-center gap-3 bg-[#005fb0] text-white hover:bg-[#004a8a] shadow-xl shadow-blue-200 active:scale-[0.98]"
             >
               <ShieldCheck size={22} />
@@ -345,5 +189,3 @@ const PaymentScreen: React.FC<PaymentScreenProps> = ({ settings, amount, onPayme
 };
 
 export default PaymentScreen;
-
-

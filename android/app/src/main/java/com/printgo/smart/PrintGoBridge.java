@@ -159,33 +159,36 @@ public class PrintGoBridge extends Plugin {
                 if (am != null) am.killBackgroundProcesses(PRINTHAND_PACKAGE);
             } catch (Exception ignored) {}
 
-            // ── Step 4b: Build a fresh ACTION_VIEW intent ──
-            // ACTION_VIEW with setData forces PrintHand to open THIS specific URI,
-            // rather than restoring its last session the way ACTION_SEND can.
-            final Intent printIntent = new Intent(Intent.ACTION_VIEW);
-            printIntent.setDataAndType(contentUri, "application/pdf");
+            // ── Step 4b: Build a fresh ACTION_SEND intent ──
+            // ACTION_SEND with EXTRA_STREAM is the correct way to trigger PrintHand's
+            // print dialog (Color Mode, Copies, etc.) directly. ACTION_VIEW only opens
+            // PrintHand's file viewer — the print settings screen never appears.
+            final Intent printIntent = new Intent(Intent.ACTION_SEND);
+            printIntent.setType("application/pdf");
             printIntent.setPackage(PRINTHAND_PACKAGE);
+            printIntent.putExtra(Intent.EXTRA_STREAM, contentUri);
 
-            // Automation hints
+            // Automation hints passed via extras
             printIntent.putExtra("com.dynamixsoftware.printhand.EXTRA_COPIES", targetCopies);
             printIntent.putExtra("com.dynamixsoftware.printhand.EXTRA_AUTO_PRINT", true);
 
-            // FLAG_ACTIVITY_CLEAR_TASK wipes PrintHand's entire back-stack so there
-            // is no "previous document" activity lurking underneath.
+            // FLAG_ACTIVITY_CLEAR_TASK wipes PrintHand's entire back-stack so the
+            // previous document's activity is gone before we launch the new one.
             printIntent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
             printIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-            printIntent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TASK);   // ← key change
+            printIntent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TASK);
 
-            // Android 11+ ClipData grant
+            // Android 11+ ClipData URI grant
             printIntent.setClipData(android.content.ClipData.newRawUri("", contentUri));
 
-            Log.d(TAG, "Launching PrintHand ACTION_VIEW (fresh) for: " + sourceFile.getName());
+            Log.d(TAG, "Launching PrintHand ACTION_SEND (print dialog) for: " + sourceFile.getName());
 
-            // Wait 1500 ms so the OS fully tears PrintHand down before relaunch
+            // Wait 2000 ms so the OS fully tears down PrintHand before relaunch,
+            // ensuring no stale document session is restored.
             new android.os.Handler(android.os.Looper.getMainLooper()).postDelayed(() -> {
                 context.startActivity(printIntent);
-                Log.d(TAG, "PrintHand launched fresh with new document.");
-            }, 1500);
+                Log.d(TAG, "PrintHand launched fresh — print dialog should appear.");
+            }, 2000);
 
             JSObject ret = new JSObject();
             ret.put("success", true);
